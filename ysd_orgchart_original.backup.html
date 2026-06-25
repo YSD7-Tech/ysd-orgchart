@@ -1,0 +1,982 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yakima School District — Interactive Organizational Chart</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: #1d1d1b; min-height: 100vh; }
+  * { box-sizing: border-box; }
+  input[type=text] { font-family: inherit; }
+  
+  /* Smooth animations */
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-15px); max-height: 0; }
+    to { opacity: 1; transform: translateY(0); max-height: 5000px; }
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  
+  @keyframes expandChildren {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  
+  .expand-anim {
+    animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    overflow: hidden;
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.25s ease-out;
+  }
+  
+  .scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+  
+  .expand-children {
+    animation: expandChildren 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  
+  /* Hover effects */
+  .node-card {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .node-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.25);
+  }
+  
+  .expand-btn {
+    transition: all 0.2s ease;
+  }
+  
+  .expand-btn:hover {
+    transform: scale(1.15);
+  }
+  
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 12px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.05);
+    border-radius: 6px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 6px;
+    border: 2px solid rgba(255,255,255,0.05);
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.5);
+  }
+  
+  /* Collapse all button */
+  .collapse-all-btn {
+    background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(233,69,96,0.3);
+  }
+  
+  .collapse-all-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(233,69,96,0.4);
+  }
+</style>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+/* ===== Logo ===== */
+const LOGO_SRC = "logo.png";
+
+function Logo({ size = 46, chip = false }) {
+  const [err, setErr] = useState(false);
+  useEffect(() => { setErr(false); }, []);
+  const content = !err
+    ? <img src={LOGO_SRC} alt="Yakima School District" onError={() => setErr(true)} style={{ height: size, width: "auto", display: "block" }} />
+    : <div style={{ display: "flex", alignItems: "center", gap: size * 0.18 }}>
+        <div style={{ fontFamily: '"Segoe Script","Brush Script MT","Snell Roundhand",cursive', fontStyle: "italic", fontSize: size * 0.62, color: "#ffffff", fontWeight: 700, textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>Yakima</div>
+        <div style={{ fontSize: size * 0.2, letterSpacing: size * 0.04, color: "#ffffff", fontWeight: 700, lineHeight: 1.05, textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>SCHOOL<br />DISTRICT</div>
+      </div>;
+  if (chip) return <div style={{ background: "rgba(255,255,255,0.15)", padding: "6px 12px", borderRadius: 10, display: "inline-flex", alignItems: "center", backdropFilter: "blur(10px)" }}>{content}</div>;
+  return content;
+}
+
+/* ===== Data ===== */
+const charts = {
+  cabinet: {
+    label: "Superintendent's Cabinet",
+    short: "The full leadership cabinet around the Superintendent.",
+    layout: "cabinet",
+    exec: { name: "Trevor Greene, Ed.D.", title: "Superintendent", phone: "509.573.7001", email: "greene.trevor@ysd7.org",
+      assistant: { name: "Barb Fiscus", title: "Admin Assistant", phone: "509.573.7001", email: "fiscus.barbara@ysd7.org" } },
+    members: [
+      { name: "Jake Kuper", title: "Assistant Superintendent", sub: "Financial Services, Enrollment, & Operations", phone: "509.573.7045", email: "kuper.jacob@ysd7.org", chart: "kuper" },
+      { name: "Christina Larsen, Ed.D.", title: "Deputy Superintendent", sub: "CTE, Special Education, Safety and Security & HR", phone: "509.573.7032", email: "larsen.christina@ysd7.org", chart: "larsen" },
+      { name: "Maria Lucero, Ed.D.", title: "Assistant Superintendent", sub: "Teaching & Learning", phone: "509.573.7016", email: "lucero.maria@ysd7.org", chart: "lucero" },
+      { name: "Robert Noe", title: "Chief Legal Counsel", sub: "Student Services", phone: "509.573.7039", email: "noe.robert@ysd7.org", chart: "noe" },
+      { name: "Andy Gonzalez", title: "Executive Director", sub: "Technology", phone: "509.573.2901", email: "gonzalez.andy@ysd7.org", chart: "kuper" },
+    ],
+  },
+  greene: {
+    label: "Dr. Trevor Greene, Superintendent",
+    short: "Reports to the Board of Directors. Top of the district.",
+    note: "Direct Report to Board of Directors",
+    root: {
+      name: "Trevor Greene, Ed.D.", title: "Superintendent", phone: "509.573.7001", email: "greene.trevor@ysd7.org",
+      assistant: { name: "Barb Fiscus", title: "Admin Assistant", phone: "509.573.7001", email: "fiscus.barbara@ysd7.org" },
+      children: [
+        { name: "Jake Kuper", title: "Associate Superintendent", sub: "Finance, Facilities, Transportation", chart: "kuper" },
+        { name: "Dr. Christina Larsen", title: "Deputy Superintendent", sub: "CTE, Special Ed, Safety, HR", chart: "larsen" },
+        { name: "Barb Fiscus", title: "Executive Director", children: [
+          { label: "Communications", dept: true },
+          { label: "Public Relations", dept: true },
+          { label: "Language Access", dept: true },
+          { label: "Student Voice", dept: true },
+          { label: "Family and Community Engagement", dept: true },
+        ] },
+      ],
+    },
+  },
+  larsen: {
+    label: "Dr. Christina Larsen, Deputy Superintendent",
+    short: "CTE, Special Education, Safety & Security, and HR.",
+    note: "Direct Report to Supt Greene",
+    root: {
+      name: "Christina Larsen, Ed.D.", title: "Deputy Superintendent", phone: "509.573.7032", email: "larsen.christina@ysd7.org",
+      assistant: { name: "Yesenia Diaz", title: "Admin Assistant", phone: "509.573.7003", email: "diaz.yesenia@ysd7.org" },
+      children: [
+        { label: "Special Education Services", dept: true, children: [
+          { name: "K.C. Mitchell", title: "Executive Director", children: [
+            { name: "Kevin Brennan", title: "Director", children: [
+              { name: "Kelli Riddle", title: "Assistant Director" },
+              { name: "Dr. Jamie Johnson", title: "Assistant Director" },
+              { name: "Holly Sutton", title: "Program Manager" },
+            ] },
+          ] },
+        ] },
+        { label: "Career & College Readiness", dept: true, children: [
+          { name: "Bonnie Smith", title: "Executive Director", children: [
+            { name: "Gabe Stotz", title: "CTE Director", children: [
+              { name: "Nicole Bass", title: "CTE Program Manager" },
+            ] },
+          ] },
+        ] },
+        { name: "Robert Noe", title: "Chief Legal Counsel", sub: "Legal Services", chart: "noe" },
+        { name: "Maria Lucero", title: "Assistant Supt", sub: "Teaching & Learning", chart: "lucero" },
+        { label: "Safety & Security / Athletics", dept: true, children: [
+          { name: "Sara Cordova", title: "Director", children: [
+            { name: "Nate Henyan", title: "Assistant Director" },
+          ] },
+        ] },
+        { label: "Human Resources", dept: true, children: [
+          { name: "Kim Newell", title: "Director" },
+          { name: "Chris Miller", title: "Director", children: [
+            { name: "Olivia Martinez", title: "Program Manager" },
+          ] },
+        ] },
+      ],
+    },
+  },
+  kuper: {
+    label: "Jake Kuper, Assistant Superintendent",
+    short: "Finance, Payroll, Technology, Enrollment, Facilities, Transportation.",
+    note: "Direct Report to Supt Greene",
+    root: {
+      name: "Jake Kuper", title: "Assistant Superintendent", phone: "509.573.7045", email: "kuper.jacob@ysd7.org",
+      assistant: { name: "Liz Gonzalez", title: "Admin Assistant / Enrollment Supv.", phone: "509.573.7025", email: "gonzalez.elizabeth@ysd7.org" },
+      children: [
+        { label: "FINANCE", dept: true, children: [
+          { name: "Susan Fate", title: "Director", sub: "Fiscal Services", children: [
+            { name: "Christi Kirk", title: "Program Manager", children: [
+              { label: "Skyward - Fiscal & HR Support", dept: true, children: [
+                { name: "Sergio Abundiz", title: "Supervisor" },
+              ] },
+            ] },
+          ] },
+          { name: "Amber Cliett", title: "Director", sub: "Grant Mng & Budgets" },
+        ] },
+        { label: "PAYROLL", dept: true, children: [
+          { name: "Shari Chapman", title: "Director", sub: "Payroll" },
+        ] },
+        { label: "TECHNOLOGY", dept: true, children: [
+          { name: "Andy Gonzalez", title: "Executive Director", sub: "Technology", children: [
+            { label: "Assessment", person: "Tina Gerstenberger", dept: true },
+            { label: "Computer Services", person: "Tania Lopez", dept: true },
+            { label: "Information Services", person: "Robert Adams", dept: true },
+            { label: "Network Services", person: "Lance Sandage", dept: true },
+            { label: "Student Info Services", person: "Angela Gjestrum", dept: true },
+          ] },
+        ] },
+        { label: "ENROLLMENT SERVICES", dept: true },
+        { label: "FACILITIES & CAPITAL PROJECTS", dept: true, children: [
+          { name: "Kyle Soptich", title: "Director", sub: "Facilities", children: [
+            { label: "Custodial", dept: true, children: [
+              { name: "Jerardo Rivera", title: "Program Manager", children: [
+                { name: "Jesus Valencia", title: "Supervisor", children: [
+                  { name: "Murray Campbell", title: "Supervisor" },
+                ] },
+              ] },
+            ] },
+            { label: "Maintenance & Grounds", dept: true, children: [
+              { name: "Fidel Gomez", title: "Supervisor" },
+            ] },
+          ] },
+        ] },
+        { label: "TRANSPORTATION", dept: true, children: [
+          { name: "Artemio Rodriguez, Jr.", title: "Director", sub: "Transportation", children: [
+            { name: "Richard Porter", title: "Assistant Director" },
+          ] },
+        ] },
+      ],
+    },
+  },
+  lucero: {
+    label: "Dr. Maria Lucero, Assistant Superintendent",
+    short: "Teaching & Learning, programs, and all schools.",
+    note: "Direct Report to Deputy Larsen",
+    root: {
+      name: "Maria Lucero, Ed.D.", title: "Assistant Superintendent", phone: "509.573.7016", email: "lucero.maria@ysd7.org",
+      assistant: { name: "Ilda Parra", title: "Admin Assistant", phone: "509.573.7006", email: "parra.ilda@ysd7.org" },
+      children: [
+        { group: true, children: [
+          { label: "PLC's", dept: true },
+          { label: "GEAR UP", dept: true },
+          { label: "Multilingual - TBIP, Dual Language", dept: true },
+          { label: "Inclusionary Practices", dept: true },
+          { label: "MTSS", dept: true },
+          { label: "Adams Elem, Gilbert Elem, Hoover Elem", schools: true },
+        ] },
+        { name: "Jaime Lee", title: "Executive Director", sub: "Learning & Leadership", children: [
+          { label: "Danielson Framework Specialist", dept: true },
+          { label: "ELA/SLA", dept: true },
+          { label: "Health, LAP, Library, PE", dept: true },
+          { label: "Dyslexia Law/K4 Literacy Law", dept: true },
+          { label: "Highly Capable", dept: true },
+          { label: "Franklin MS, Lewis & Clark MS, Roosevelt Elem", schools: true },
+        ] },
+        { name: "Hector Mendez, Jr.", title: "Executive Director", sub: "Learning & Leadership", children: [
+          { label: "Summer School", dept: true },
+          { label: "Kinder Academy", dept: true },
+          { label: "Science", dept: true },
+          { label: "STEAM", dept: true },
+          { label: "Garfield Elem, MLK Jr. Elem, Nob Hill Elem", schools: true },
+        ] },
+        { name: "Teresa Davison", title: "Executive Director", sub: "Learning & Leadership", children: [
+          { label: "Scholarships", dept: true },
+          { label: "Visual & Performing Arts", dept: true },
+          { label: "Highly Capable", dept: true },
+          { label: "A.C. Davis HS, D.D. Eisenhower HS", schools: true },
+        ] },
+      ],
+    },
+  },
+  noe: {
+    label: "Bob Noe, Chief Legal Counsel",
+    short: "Legal Services, Student Services, Public Records.",
+    note: "Direct Report to Deputy Larsen",
+    root: {
+      name: "Bob Noe", title: "Chief Legal Counsel", phone: "509.573.7039", email: "noe.robert@ysd7.org",
+      children: [
+        { label: "Legal Services", dept: true },
+        { label: "Student Services", dept: true, children: [
+          { name: "Omar Santoy", title: "Executive Director", sub: "Student Services", children: [
+            { label: "Student Services", dept: true, children: [
+              { name: "Erin Thomas", title: "Director", sub: "Student Services", children: [
+                { name: "Shawn Orminski", title: "Assistant Director" },
+              ] },
+            ] },
+            { label: "Health Services", dept: true, children: [
+              { name: "Amy Norton", title: "Director", sub: "Health Services" },
+            ] },
+            { label: "Child Nutrition Services", dept: true, children: [
+              { name: "Cassie Davidson", title: "Director", sub: "Child Nutrition", children: [
+                { name: "Marcia Wagner", title: "Assistant Director", children: [
+                  { name: "Piyaluck Jaroenkaew", title: "Supervisor" },
+                ] },
+              ] },
+            ] },
+          ] },
+        ] },
+        { label: "Public Records Requests", dept: true, children: [
+          { name: "Monica Lake" },
+        ] },
+      ],
+    },
+  },
+};
+const order = ["cabinet", "greene", "larsen", "kuper", "lucero", "noe"];
+
+/* ===== Flatten for search ===== */
+function flatten(node, chartId, acc) {
+  if (node.name) acc.push({ name: node.name, title: node.title || "", sub: node.sub || "", chart: chartId });
+  if (node.person) acc.push({ name: node.person, title: node.label || "", sub: "", chart: chartId });
+  (node.children || []).forEach((c) => flatten(c, chartId, acc));
+}
+const allPeople = [];
+order.forEach((id) => {
+  const c = charts[id];
+  if (c.root) flatten(c.root, id, allPeople);
+  if (c.exec) allPeople.push({ name: c.exec.name, title: c.exec.title, sub: "", chart: id });
+  (c.members || []).forEach((m) => allPeople.push({ name: m.name, title: m.title, sub: m.sub || "", chart: id }));
+});
+
+/* ===== Connector lines ===== */
+function VLine({ h }) { return <div style={{ width: 2, height: h, background: "rgba(255,255,255,0.2)", borderRadius: 1 }} />; }
+function HLine({ w }) { return <div style={{ width: w, height: 2, background: "rgba(255,255,255,0.2)", borderRadius: 1 }} />; }
+
+/* ===== Recursive Node with Expand State ===== */
+function TreeNode({ node, depth = 0, onExpandChart, expandedNodes, toggleNode }) {
+  const nodeId = `${depth}-${node.name || node.label || Math.random()}`;
+  const isExpanded = expandedNodes.has(nodeId);
+  const hasChildren = (node.children && node.children.length > 0) || node.dept || node.schools;
+  const isClickable = !!node.chart;
+  const isDept = node.dept || node.schools;
+
+  const handleExpand = (e) => {
+    e.stopPropagation();
+    if (isClickable) {
+      onExpandChart(node.chart);
+    } else if (hasChildren) {
+      toggleNode(nodeId);
+    }
+  };
+
+  const cardStyle = {
+    background: isClickable 
+      ? "linear-gradient(135deg, rgba(255,200,150,0.15) 0%, rgba(255,150,150,0.15) 100%)"
+      : "rgba(255,255,255,0.08)",
+    backdropFilter: "blur(10px)",
+    border: isClickable 
+      ? "2px solid rgba(255,200,150,0.4)" 
+      : isExpanded 
+        ? "2px solid rgba(100,200,255,0.5)" 
+        : "2px solid rgba(255,255,255,0.15)",
+    borderRadius: 12,
+    padding: "14px 18px",
+    minWidth: 200,
+    maxWidth: 280,
+    cursor: hasChildren ? "pointer" : "default",
+    position: "relative",
+    boxShadow: isExpanded 
+      ? "0 8px 30px rgba(100,200,255,0.2)" 
+      : "0 4px 15px rgba(0,0,0,0.2)",
+    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+  };
+
+  const expandIndicator = hasChildren && (
+    <div style={{ 
+      position: "absolute", 
+      right: 10, 
+      top: "50%", 
+      transform: "translateY(-50%)",
+      width: 28, 
+      height: 28, 
+      background: isExpanded 
+        ? "linear-gradient(135deg, #64c8ff 0%, #4fa8d4 100%)"
+        : "linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%)",
+      borderRadius: "50%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+      boxShadow: isExpanded ? "0 4px 12px rgba(100,200,255,0.4)" : "none"
+    }}>
+      <div style={{ 
+        width: 10, 
+        height: 10, 
+        borderTop: "2.5px solid white", 
+        borderRight: "2.5px solid white",
+        transform: isExpanded ? "rotate(-135deg)" : "rotate(45deg)",
+        transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)"
+      }} />
+    </div>
+  );
+
+  if (isDept) {
+    return (
+      <div style={{ display: "inline-block", textAlign: node.schools ? "left" : "center" }} className="fade-in">
+        <div style={{
+          ...cardStyle,
+          background: node.schools 
+            ? "linear-gradient(135deg, rgba(150,255,200,0.15) 0%, rgba(100,255,180,0.15) 100%)"
+            : "rgba(255,255,255,0.05)",
+          border: node.schools 
+            ? "2px solid rgba(150,255,200,0.4)" 
+            : "2px dashed rgba(255,255,255,0.2)",
+          fontSize: node.schools ? 12 : 13,
+          fontWeight: 600,
+          color: node.schools ? "#a8ffda" : "#ccc",
+        }}>
+          {node.label}
+        </div>
+        {node.person && (
+          <div style={{ 
+            background: "rgba(255,255,255,0.1)", 
+            border: "2px solid rgba(255,200,150,0.4)", 
+            borderRadius: 8, 
+            padding: "5px 12px", 
+            margin: "-3px auto 0", 
+            maxWidth: 180, 
+            fontSize: 11, 
+            fontWeight: 600, 
+            color: "#ffc896", 
+            textAlign: "center",
+            boxShadow: "0 2px 10px rgba(255,200,150,0.15)"
+          }}>
+            {node.person}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      className="node-card scale-in"
+      onClick={handleExpand}
+      style={cardStyle}
+    >
+      {expandIndicator}
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 5 }}>{node.name}</div>
+      {node.title && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>{node.title}</div>}
+      {node.sub && <div style={{ fontSize: 11, fontStyle: "italic", color: "rgba(255,255,255,0.7)", marginTop: 3 }}>{node.sub}</div>}
+      {node.phone && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 4 }}>{node.phone}</div>}
+      {node.email && <div style={{ fontSize: 11, color: "#64c8ff", wordBreak: "break-all", marginTop: 2 }}>{node.email}</div>}
+      
+      {hasChildren && !isExpanded && (
+        <div style={{ 
+          fontSize: 10, 
+          color: "#64c8ff", 
+          marginTop: 8, 
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: 1
+        }}>
+          {node.children.length} child(ren) ↓ Click to expand
+        </div>
+      )}
+      
+      {hasChildren && isExpanded && (
+        <div style={{ 
+          fontSize: 10, 
+          color: "#a8ffda", 
+          marginTop: 8, 
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: 1
+        }}>
+          Expanded ↑ Click to collapse
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== Recursive Children Renderer ===== */
+function ChildrenRenderer({ items, depth, onExpandChart, expandedNodes, toggleNode }) {
+  if (!items || items.length === 0) return null;
+  
+  return (
+    <div style={{ 
+      display: "flex", 
+      flexDirection: "column", 
+      alignItems: "center", 
+      marginTop: 12,
+      paddingLeft: depth > 0 ? 30 : 0
+    }}>
+      <VLine h={16} />
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
+        {items.map((item, i) => (
+          <div key={i} className="expand-children" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            {i > 0 && depth > 0 && (
+              <div style={{ 
+                position: "absolute", 
+                left: -20, 
+                top: 8, 
+                width: 20, 
+                height: 2, 
+                background: "rgba(255,255,255,0.2)",
+                borderRadius: 1
+              }} />
+            )}
+            <TreeNode 
+              node={item} 
+              depth={depth + 1} 
+              onExpandChart={onExpandChart}
+              expandedNodes={expandedNodes}
+              toggleNode={toggleNode}
+            />
+            {item.children && item.children.length > 0 && (
+              <ChildrenRenderer 
+                items={item.children} 
+                depth={depth + 1} 
+                onExpandChart={onExpandChart}
+                expandedNodes={expandedNodes}
+                toggleNode={toggleNode}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===== Assistant Card ===== */
+function AssistantBox({ a }) {
+  return (
+    <div style={{ 
+      position: "absolute", 
+      right: "calc(100% + 35px)", 
+      top: "50%", 
+      transform: "translateY(-50%)",
+      animation: "fadeIn 0.3s ease-out" 
+    }}>
+      <div style={{ 
+        background: "rgba(255,255,255,0.1)", 
+        backdropFilter: "blur(10px)",
+        border: "2px solid rgba(255,200,150,0.4)", 
+        borderRadius: 12, 
+        padding: "12px 16px", 
+        width: 190, 
+        textAlign: "center", 
+        lineHeight: 1.5,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#ffc896" }}>{a.name}</div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 3 }}>{a.title}</div>
+        {a.phone && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 3 }}>{a.phone}</div>}
+        {a.email && <div style={{ fontSize: 10, color: "#64c8ff", wordBreak: "break-all", marginTop: 2 }}>{a.email}</div>}
+      </div>
+      <div style={{ position: "absolute", left: "100%", top: "50%", width: 35, height: 2, background: "rgba(255,255,255,0.2)", borderRadius: 1 }} />
+    </div>
+  );
+}
+
+/* ===== Tree Chart with Expandable Nodes ===== */
+function TreeChart({ chart, onExpandChart, expandedNodes, toggleNode }) {
+  const r = chart.root;
+  const kids = r.children || [];
+  
+  return (
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        {r.assistant && <AssistantBox a={r.assistant} />}
+        <div style={{ 
+          background: "linear-gradient(135deg, #ffc896 0%, #ff9696 100%)", 
+          borderRadius: 16, 
+          padding: "18px 28px", 
+          textAlign: "center", 
+          minWidth: 240,
+          boxShadow: "0 8px 35px rgba(255,200,150,0.3)",
+          animation: "scaleIn 0.4s ease-out",
+          border: "3px solid rgba(255,255,255,0.2)"
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e", marginBottom: 5 }}>{r.name}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(26,26,46,0.85)" }}>{r.title}</div>
+          {r.phone && <div style={{ fontSize: 12, color: "rgba(26,26,46,0.75)", marginTop: 5 }}>{r.phone}</div>}
+          {r.email && <div style={{ fontSize: 12, color: "rgba(26,26,46,0.8)", marginTop: 3 }}>{r.email}</div>}
+        </div>
+      </div>
+      {kids.length > 0 && (
+        <ChildrenRenderer 
+          items={kids} 
+          depth={0} 
+          onExpandChart={onExpandChart}
+          expandedNodes={expandedNodes}
+          toggleNode={toggleNode}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ===== Cabinet Chart ===== */
+function CabinetChart({ chart, onExpandChart, expandedNodes, toggleNode }) {
+  const e = chart.exec;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 10 }}>
+      <div style={{ 
+        fontSize: 24, 
+        color: "#fff", 
+        marginBottom: 24,
+        fontWeight: 700,
+        textShadow: "0 3px 10px rgba(0,0,0,0.3)"
+      }}>
+        Superintendent's Cabinet
+      </div>
+      <div style={{ position: "relative", marginBottom: 36 }}>
+        <AssistantBox a={e.assistant} />
+        <div style={{ 
+          background: "linear-gradient(135deg, #ffc896 0%, #ff9696 100%)", 
+          borderRadius: 16, 
+          padding: "18px 32px", 
+          textAlign: "center", 
+          minWidth: 240,
+          boxShadow: "0 8px 35px rgba(255,200,150,0.3)",
+          animation: "scaleIn 0.4s ease-out",
+          border: "3px solid rgba(255,255,255,0.2)"
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e", marginBottom: 5 }}>{e.name}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(26,26,46,0.85)" }}>{e.title}</div>
+          <div style={{ fontSize: 12, color: "rgba(26,26,46,0.75)", marginTop: 5 }}>{e.phone}</div>
+          <div style={{ fontSize: 12, color: "rgba(26,26,46,0.8)", marginTop: 3 }}>{e.email}</div>
+        </div>
+      </div>
+      <div style={{ 
+        border: "2px dashed rgba(255,255,255,0.2)", 
+        borderRadius: 16, 
+        padding: 28,
+        background: "rgba(255,255,255,0.03)",
+        backdropFilter: "blur(5px)"
+      }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18 }}>
+          {chart.members.map((m, i) => (
+            <TreeNode 
+              key={i} 
+              node={m} 
+              depth={0} 
+              onExpandChart={onExpandChart}
+              expandedNodes={expandedNodes}
+              toggleNode={toggleNode}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===== Chart Page ===== */
+function ChartPage({ id, onBack, onExpandChart, expandedNodes, toggleNode }) {
+  const chart = charts[id];
+  
+  return (
+    <div style={{ 
+      animation: "fadeIn 0.4s ease-out",
+      minHeight: "100vh",
+      padding: "24px"
+    }}>
+      <div style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        gap: 18, 
+        padding: "18px 28px", 
+        background: "rgba(255,255,255,0.08)",
+        backdropFilter: "blur(15px)",
+        borderRadius: 18,
+        marginBottom: 28,
+        border: "2px solid rgba(255,255,255,0.1)",
+        boxShadow: "0 8px 30px rgba(0,0,0,0.3)"
+      }}>
+        <button 
+          onClick={onBack} 
+          className="collapse-all-btn"
+          style={{ 
+            fontSize: 14, 
+            padding: "12px 24px", 
+            borderRadius: 10, 
+            fontWeight: 600,
+            boxShadow: "0 4px 15px rgba(233,69,96,0.3)"
+          }}
+        >
+          ← Back to Home
+        </button>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>{chart.label}</div>
+      </div>
+      
+      <div style={{ 
+        overflow: "auto", 
+        padding: "24px",
+        background: "rgba(255,255,255,0.05)",
+        backdropFilter: "blur(10px)",
+        borderRadius: 18,
+        minHeight: "60vh",
+        border: "2px solid rgba(255,255,255,0.1)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <Logo size={64} />
+        </div>
+        {chart.note && (
+          <div style={{ 
+            fontSize: 13, 
+            fontStyle: "italic", 
+            color: "rgba(255,255,255,0.7)", 
+            padding: "14px 24px", 
+            marginBottom: 20,
+            textAlign: "center",
+            background: "rgba(100,200,255,0.1)",
+            borderRadius: 10,
+            border: "1px solid rgba(100,200,255,0.2)"
+          }}>
+            {chart.note}
+          </div>
+        )}
+        <div style={{ width: "fit-content", margin: "0 auto", padding: "20px" }}>
+          {chart.layout === "cabinet" ? (
+            <CabinetChart chart={chart} onExpandChart={onExpandChart} expandedNodes={expandedNodes} toggleNode={toggleNode} />
+          ) : (
+            <TreeChart chart={chart} onExpandChart={onExpandChart} expandedNodes={expandedNodes} toggleNode={toggleNode} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===== Home Page ===== */
+function Home({ onExpandChart }) {
+  const [search, setSearch] = useState("");
+  const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const results = search.length > 1 ? allPeople.filter((p) => (p.name + p.title + p.sub).toLowerCase().includes(search.toLowerCase())) : [];
+
+  const toggleNode = useCallback((nodeId) => {
+    setExpandedNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(nodeId)) {
+        newSet.delete(nodeId);
+      } else {
+        newSet.add(nodeId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    setExpandedNodes(new Set());
+  }, []);
+
+  const handleChartExpand = useCallback((chartId) => {
+    onExpandChart(chartId);
+  }, [onExpandChart]);
+
+  return (
+    <div style={{ 
+      padding: "32px 28px 60px", 
+      maxWidth: 1400, 
+      margin: "0 auto",
+      animation: "fadeIn 0.5s ease-out"
+    }}>
+      <div style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 16,
+        marginBottom: 16,
+        background: "rgba(255,255,255,0.08)",
+        backdropFilter: "blur(15px)",
+        padding: "24px 32px",
+        borderRadius: 18,
+        boxShadow: "0 8px 30px rgba(0,0,0,0.3)",
+        border: "2px solid rgba(255,255,255,0.1)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          <Logo size={64} chip />
+          <div>
+            <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0, color: "#fff", textShadow: "0 3px 8px rgba(0,0,0,0.3)" }}>
+              Organizational Chart
+            </h1>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)", marginTop: 5 }}>
+              Click any card to expand its hierarchy • Click again to collapse • All cards stay visible
+            </div>
+          </div>
+        </div>
+        <button 
+          onClick={collapseAll}
+          className="collapse-all-btn"
+        >
+          Collapse All ↑
+        </button>
+      </div>
+
+      <input 
+        type="text" 
+        value={search} 
+        onChange={(e) => setSearch(e.target.value)} 
+        placeholder="🔍 Search people by name, title, or department..."
+        style={{ 
+          width: "100%", 
+          fontSize: 16, 
+          padding: "16px 20px", 
+          borderRadius: 14, 
+          border: "2px solid rgba(255,255,255,0.2)", 
+          background: "rgba(255,255,255,0.08)",
+          backdropFilter: "blur(10px)",
+          color: "#fff",
+          margin: "20px 0 14px",
+          boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+          outline: "none",
+          placeholder: "rgba(255,255,255,0.5)"
+        }} 
+      />
+
+      {search.length > 1 && (
+        <div style={{ 
+          background: "rgba(255,255,255,0.08)", 
+          backdropFilter: "blur(10px)",
+          borderRadius: 14, 
+          border: "2px solid rgba(255,255,255,0.15)", 
+          padding: 16, 
+          marginBottom: 24,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
+        }}>
+          {results.length === 0 && <div style={{ fontSize: 15, color: "rgba(255,255,255,0.6)" }}>No matches found.</div>}
+          {results.map((p, i) => (
+            <div 
+              key={i} 
+              onClick={() => handleChartExpand(p.chart)}
+              className="fade-in"
+              style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                padding: "12px 16px", 
+                cursor: "pointer", 
+                fontSize: 15, 
+                borderBottom: i < results.length - 1 ? "1px solid rgba(255,255,255,0.1)" : "none",
+                borderRadius: 10,
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(100,200,255,0.15)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              <span><b style={{ color: "#fff" }}>{p.name}</b> <span style={{ color: "rgba(255,255,255,0.7)" }}>— {p.title}</span>{p.sub ? <span style={{ color: "rgba(255,255,255,0.6)", fontStyle: "italic" }}> ({p.sub})</span> : ""}</span>
+              <span style={{ color: "#64c8ff", fontSize: 14, fontWeight: 600 }}>{charts[p.chart].label.split(",")[0]} →</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", 
+        gap: 24, 
+        marginTop: 24 
+      }}>
+        {order.map((id) => (
+          <div 
+            key={id} 
+            onClick={() => handleChartExpand(id)}
+            className="node-card scale-in"
+            style={{ 
+              background: "rgba(255,255,255,0.08)",
+              backdropFilter: "blur(10px)",
+              border: "2px solid rgba(255,255,255,0.15)",
+              borderRadius: 18, 
+              padding: 24, 
+              cursor: "pointer",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "rgba(100,200,255,0.5)";
+              e.currentTarget.style.boxShadow = "0 8px 30px rgba(100,200,255,0.2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+              e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.2)";
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <Logo size={36} chip />
+            </div>
+            <div style={{ 
+              fontSize: 17, 
+              fontWeight: 700, 
+              color: "#fff",
+              marginBottom: 10
+            }}>
+              {charts[id].label}
+            </div>
+            <div style={{ 
+              fontSize: 14, 
+              color: "rgba(255,255,255,0.75)", 
+              marginTop: 10, 
+              lineHeight: 1.7 
+            }}>
+              {charts[id].short}
+            </div>
+            <div style={{ 
+              fontSize: 13, 
+              color: "#64c8ff", 
+              marginTop: 16, 
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 8
+            }}>
+              Click to open chart →
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===== Main App ===== */
+function App() {
+  const [view, setView] = useState("home");
+  const [expandedNodes, setExpandedNodes] = useState(new Set());
+
+  const toggleNode = useCallback((nodeId) => {
+    setExpandedNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(nodeId)) {
+        newSet.delete(nodeId);
+      } else {
+        newSet.add(nodeId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleExpandChart = useCallback((chartId) => {
+    setView(chartId);
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setView("home");
+  }, []);
+
+  return (
+    <div style={{ minHeight: "100vh" }}>
+      {view === "home"
+        ? <Home onExpandChart={handleExpandChart} />
+        : <ChartPage 
+            id={view} 
+            onBack={handleBack} 
+            onExpandChart={handleExpandChart}
+            expandedNodes={expandedNodes}
+            toggleNode={toggleNode}
+          />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>

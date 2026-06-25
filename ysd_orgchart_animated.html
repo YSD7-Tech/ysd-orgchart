@@ -1,0 +1,941 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yakima School District — Unified Organizational Chart</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: #1d1d1b; }
+  * { box-sizing: border-box; }
+  input[type=text] { font-family: inherit; }
+
+  @keyframes growIn { from { opacity: 0; transform: translateY(-10px) scale(0.97); } to { opacity: 1; transform: none; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pulseRing {
+    0% { box-shadow: 0 0 0 0 rgba(100,200,255,0.6); }
+    70% { box-shadow: 0 0 0 18px rgba(100,200,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(100,200,255,0); }
+  }
+  @keyframes dash { to { stroke-dashoffset: -16; } }
+
+  /* easeInOutCubic — a gentle ramp at both ends */
+  .grow-in { animation: growIn 0.62s cubic-bezier(0.65, 0, 0.35, 1) backwards; }
+  .pulse { animation: pulseRing 1.4s ease-out 2; }
+
+  /* collapsing a branch: shrink + fade the whole subtree upward toward its parent */
+  @keyframes subtreeCollapse {
+    from { opacity: 1; transform: scaleY(1) translateY(0); }
+    to   { opacity: 0; transform: scaleY(0.82) translateY(-10px); }
+  }
+  .subtree-collapse { animation: subtreeCollapse 0.45s cubic-bezier(0.65, 0, 0.35, 1) forwards; transform-origin: top center; }
+
+  /* Respect users who ask for less motion (also smoother on low-end machines) */
+  @media (prefers-reduced-motion: reduce) {
+    .grow-in, .pulse, .subtree-collapse { animation: none !important; }
+  }
+
+  .node-card { transition: opacity .35s ease, filter .35s ease, border-color .25s ease, box-shadow .25s ease, transform .2s ease; }
+  .node-card:hover { transform: translateY(-2px); }
+
+  .tool-btn { border: none; color: #fff; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 13px;
+              cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+  .tool-btn:hover { transform: translateY(-2px); }
+  .btn-red { background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%); box-shadow: 0 4px 15px rgba(233,69,96,0.3); }
+  .btn-gold { background: linear-gradient(135deg, #ffd86b 0%, #ffb43b 100%); color: #3a2a00; box-shadow: 0 4px 15px rgba(255,180,60,0.3); }
+  .btn-gold.on { box-shadow: 0 0 0 3px rgba(255,216,107,0.5), 0 4px 18px rgba(255,180,60,0.5); }
+  .btn-ghost { background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.2); }
+
+  .zoom-btn { width: 40px; height: 40px; border-radius: 10px; font-size: 22px; font-weight: 700; line-height: 1;
+              background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.2); color: #fff; cursor: pointer;
+              display: flex; align-items: center; justify-content: center; transition: all .15s ease; }
+  .zoom-btn:hover { background: rgba(255,255,255,0.22); }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 6px; }
+</style>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } = React;
+
+/* ===== Logo ===== */
+const LOGO_SRC = "logo.png";
+function Logo({ size = 46, chip = false }) {
+  const [err, setErr] = useState(false);
+  const content = !err
+    ? <img src={LOGO_SRC} alt="Yakima School District" onError={() => setErr(true)} style={{ height: size, width: "auto", display: "block" }} />
+    : <div style={{ display: "flex", alignItems: "center", gap: size * 0.18 }}>
+        <div style={{ fontFamily: '"Segoe Script","Brush Script MT","Snell Roundhand",cursive', fontStyle: "italic", fontSize: size * 0.62, color: "#fff", fontWeight: 700, textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>Yakima</div>
+        <div style={{ fontSize: size * 0.2, letterSpacing: size * 0.04, color: "#fff", fontWeight: 700, lineHeight: 1.05, textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>SCHOOL<br />DISTRICT</div>
+      </div>;
+  if (chip) return <div style={{ background: "rgba(255,255,255,0.15)", padding: "6px 12px", borderRadius: 10, display: "inline-flex", alignItems: "center", backdropFilter: "blur(10px)" }}>{content}</div>;
+  return content;
+}
+
+/* ===== Unified org data =====
+   Node kinds:
+   - person:  { name, title, sub?, phone?, email?, cabinet?, assistant?, children? }
+   - dept:    { label, dept:true, person?, children? }
+   - schools: { label, schools:true }
+   - group:   { group:true, children } -> inlined into parent at build time
+*/
+const ORG = {
+  name: "Board of Directors", title: "Elected Governing Board", board: true,
+  children: [
+    {
+      name: "Trevor Greene, Ed.D.", title: "Superintendent", phone: "509.573.7001", email: "greene.trevor@ysd7.org",
+      assistant: { name: "Barb Fiscus", title: "Admin Assistant", phone: "509.573.7001", email: "fiscus.barbara@ysd7.org" },
+      children: [
+        {
+          name: "Jake Kuper", title: "Assistant Superintendent", sub: "Financial Services, Enrollment & Operations",
+          phone: "509.573.7045", email: "kuper.jacob@ysd7.org", cabinet: true,
+          assistant: { name: "Liz Gonzalez", title: "Admin Asst / Enrollment Supv.", phone: "509.573.7025", email: "gonzalez.elizabeth@ysd7.org" },
+          children: [
+            { label: "Finance", dept: true, children: [
+              { name: "Susan Fate", title: "Director", sub: "Fiscal Services", children: [
+                { name: "Christi Kirk", title: "Program Manager", children: [
+                  { label: "Skyward — Fiscal & HR Support", dept: true, children: [
+                    { name: "Sergio Abundiz", title: "Supervisor" },
+                  ] },
+                ] },
+              ] },
+              { name: "Amber Cliett", title: "Director", sub: "Grant Mgmt & Budgets" },
+            ] },
+            { label: "Payroll", dept: true, children: [
+              { name: "Shari Chapman", title: "Director", sub: "Payroll" },
+            ] },
+            { label: "Technology", dept: true, children: [
+              { name: "Andy Gonzalez", title: "Executive Director", sub: "Technology", phone: "509.573.2901", email: "gonzalez.andy@ysd7.org", cabinet: true, children: [
+                { label: "Assessment", person: "Tina Gerstenberger", dept: true },
+                { label: "Computer Services", person: "Tania Lopez", dept: true },
+                { label: "Information Services", person: "Robert Adams", dept: true },
+                { label: "Network Services", person: "Lance Sandage", dept: true },
+                { label: "Student Info Services", person: "Angela Gjestrum", dept: true },
+              ] },
+            ] },
+            { label: "Enrollment Services", dept: true },
+            { label: "Facilities & Capital Projects", dept: true, children: [
+              { name: "Kyle Soptich", title: "Director", sub: "Facilities", children: [
+                { label: "Custodial", dept: true, children: [
+                  { name: "Jerardo Rivera", title: "Program Manager", children: [
+                    { name: "Jesus Valencia", title: "Supervisor", children: [
+                      { name: "Murray Campbell", title: "Supervisor" },
+                    ] },
+                  ] },
+                ] },
+                { label: "Maintenance & Grounds", dept: true, children: [
+                  { name: "Fidel Gomez", title: "Supervisor" },
+                ] },
+              ] },
+            ] },
+            { label: "Transportation", dept: true, children: [
+              { name: "Artemio Rodriguez, Jr.", title: "Director", sub: "Transportation", children: [
+                { name: "Richard Porter", title: "Assistant Director" },
+              ] },
+            ] },
+          ],
+        },
+        {
+          name: "Christina Larsen, Ed.D.", title: "Deputy Superintendent", sub: "CTE, Special Ed, Safety & Security, HR",
+          phone: "509.573.7032", email: "larsen.christina@ysd7.org", cabinet: true,
+          assistant: { name: "Yesenia Diaz", title: "Admin Assistant", phone: "509.573.7003", email: "diaz.yesenia@ysd7.org" },
+          children: [
+            { label: "Special Education Services", dept: true, children: [
+              { name: "K.C. Mitchell", title: "Executive Director", children: [
+                { name: "Kevin Brennan", title: "Director", children: [
+                  { name: "Kelli Riddle", title: "Assistant Director" },
+                  { name: "Dr. Jamie Johnson", title: "Assistant Director" },
+                  { name: "Holly Sutton", title: "Program Manager" },
+                ] },
+              ] },
+            ] },
+            { label: "Career & College Readiness", dept: true, children: [
+              { name: "Bonnie Smith", title: "Executive Director", children: [
+                { name: "Gabe Stotz", title: "CTE Director", children: [
+                  { name: "Nicole Bass", title: "CTE Program Manager" },
+                ] },
+              ] },
+            ] },
+            {
+              name: "Maria Lucero, Ed.D.", title: "Assistant Superintendent", sub: "Teaching & Learning",
+              phone: "509.573.7016", email: "lucero.maria@ysd7.org", cabinet: true,
+              assistant: { name: "Ilda Parra", title: "Admin Assistant", phone: "509.573.7006", email: "parra.ilda@ysd7.org" },
+              children: [
+                { group: true, children: [
+                  { label: "PLC's", dept: true },
+                  { label: "GEAR UP", dept: true },
+                  { label: "Multilingual — TBIP, Dual Language", dept: true },
+                  { label: "Inclusionary Practices", dept: true },
+                  { label: "MTSS", dept: true },
+                  { label: "Adams Elem · Gilbert Elem · Hoover Elem", schools: true },
+                ] },
+                { name: "Jaime Lee", title: "Executive Director", sub: "Learning & Leadership", children: [
+                  { label: "Danielson Framework Specialist", dept: true },
+                  { label: "ELA / SLA", dept: true },
+                  { label: "Health, LAP, Library, PE", dept: true },
+                  { label: "Dyslexia Law / K-4 Literacy Law", dept: true },
+                  { label: "Highly Capable", dept: true },
+                  { label: "Franklin MS · Lewis & Clark MS · Roosevelt Elem", schools: true },
+                ] },
+                { name: "Hector Mendez, Jr.", title: "Executive Director", sub: "Learning & Leadership", children: [
+                  { label: "Summer School", dept: true },
+                  { label: "Kinder Academy", dept: true },
+                  { label: "Science", dept: true },
+                  { label: "STEAM", dept: true },
+                  { label: "Garfield Elem · MLK Jr. Elem · Nob Hill Elem", schools: true },
+                ] },
+                { name: "Teresa Davison", title: "Executive Director", sub: "Learning & Leadership", children: [
+                  { label: "Scholarships", dept: true },
+                  { label: "Visual & Performing Arts", dept: true },
+                  { label: "Highly Capable", dept: true },
+                  { label: "A.C. Davis HS · D.D. Eisenhower HS", schools: true },
+                ] },
+              ],
+            },
+            {
+              name: "Robert Noe", title: "Chief Legal Counsel", sub: "Legal & Student Services",
+              phone: "509.573.7039", email: "noe.robert@ysd7.org", cabinet: true,
+              children: [
+                { label: "Legal Services", dept: true },
+                { label: "Student Services", dept: true, children: [
+                  { name: "Omar Santoy", title: "Executive Director", sub: "Student Services", children: [
+                    { label: "Student Services", dept: true, children: [
+                      { name: "Erin Thomas", title: "Director", sub: "Student Services", children: [
+                        { name: "Shawn Orminski", title: "Assistant Director" },
+                      ] },
+                    ] },
+                    { label: "Health Services", dept: true, children: [
+                      { name: "Amy Norton", title: "Director", sub: "Health Services" },
+                    ] },
+                    { label: "Child Nutrition Services", dept: true, children: [
+                      { name: "Cassie Davidson", title: "Director", sub: "Child Nutrition", children: [
+                        { name: "Marcia Wagner", title: "Assistant Director", children: [
+                          { name: "Piyaluck Jaroenkaew", title: "Supervisor" },
+                        ] },
+                      ] },
+                    ] },
+                  ] },
+                ] },
+                { label: "Public Records Requests", dept: true, children: [
+                  { name: "Monica Lake", title: "Public Records" },
+                ] },
+              ],
+            },
+            { label: "Safety & Security / Athletics", dept: true, children: [
+              { name: "Sara Cordova", title: "Director", children: [
+                { name: "Nate Henyan", title: "Assistant Director" },
+              ] },
+            ] },
+            { label: "Human Resources", dept: true, children: [
+              { name: "Kim Newell", title: "Director" },
+              { name: "Chris Miller", title: "Director", children: [
+                { name: "Olivia Martinez", title: "Program Manager" },
+              ] },
+            ] },
+          ],
+        },
+        {
+          name: "Barb Fiscus", title: "Executive Director", sub: "Communications & Engagement",
+          children: [
+            { label: "Communications", dept: true },
+            { label: "Public Relations", dept: true },
+            { label: "Language Access", dept: true },
+            { label: "Student Voice", dept: true },
+            { label: "Family & Community Engagement", dept: true },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+/* ORG (above) is the built-in BACKUP copy of the data. The live data normally comes
+   from the Google Sheet configured below; ORG is only used if the sheet can't be reached. */
+
+/* ===== Assign ids + build lookup maps from a node tree ===== */
+function buildTree(root) {
+  const byId = {};
+  const people = [];
+  const cabinetIds = [];
+  function visit(node, id, depth) {
+    node._id = id; node._depth = depth;
+    // inline any { group:true } children into a flat child list
+    const flat = [];
+    (node.children || []).forEach((k) => {
+      if (k.group) (k.children || []).forEach((g) => flat.push(g));
+      else flat.push(k);
+    });
+    node.children = flat;
+    byId[id] = node;
+    if (node.name) people.push({ name: node.name, title: node.title || "", sub: node.sub || "", id });
+    if (node.person) people.push({ name: node.person, title: node.label || "", sub: "", id });
+    if (node.cabinet) cabinetIds.push(id);
+    flat.forEach((c, i) => visit(c, id + "-" + i, depth + 1));
+  }
+  visit(root, "0", 0);
+  return { root, byId, people, cabinetIds };
+}
+
+/* ===== Live data source: a Google Sheet shared/published as CSV =====
+   ▼▼▼ TO CONNECT YOUR SHEET (one-time, no coding): ▼▼▼
+     1. Open the "Yakima SD Org Chart — Data" Google Sheet.
+     2. Share → General access → "Anyone with the link" = Viewer.
+     3. Paste the sheet's normal link between the quotes below.
+   Leave it as "" to always use the built-in backup copy above. */
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/1eN6CKFYWDGRneX5FMJVopWaaNTb8_m4934YeAnMeR4Y/edit";
+/* ▲▲▲ that's the only line you ever touch in this file ▲▲▲ */
+
+function csvEndpoint(u) {
+  u = (u || "").trim();
+  if (!u) return "";
+  if (/output=csv/.test(u) || /tqx=out:csv/.test(u) || /\.csv($|\?)/i.test(u)) return u; // already a CSV link
+  const m = u.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  const id = m ? m[1] : u;                                              // accept a bare sheet id too
+  return "https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:csv";
+}
+
+/* minimal RFC-4180 CSV parser -> array of string arrays */
+function parseCSV(text) {
+  const rows = []; let row = [], field = "", inQ = false;
+  text = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else field += c;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* CSV text -> array of record objects keyed by our column names */
+function csvToRecords(text) {
+  const grid = parseCSV(text).filter((r) => r.some((c) => (c || "").trim() !== ""));
+  if (grid.length < 2) return [];
+  const head = grid[0].map((h) => h.trim().toLowerCase());
+  const ix = (name) => head.indexOf(name);
+  const col = { id: ix("id"), parent: ix("reports to"), type: ix("type"), name: ix("name"),
+    title: ix("title"), detail: ix("detail"), phone: ix("phone"), email: ix("email"),
+    cabinet: ix("cabinet"), lead: ix("lead"), an: ix("assistant name"), at: ix("assistant title"),
+    ap: ix("assistant phone"), ae: ix("assistant email"), order: ix("order") };
+  const g = (r, c) => (c >= 0 && c < r.length ? (r[c] || "").trim() : "");
+  const recs = [];
+  for (let i = 1; i < grid.length; i++) {
+    const r = grid[i];
+    recs.push({ rowNum: i + 1, id: g(r, col.id), parent: g(r, col.parent),
+      type: (g(r, col.type) || "Person"), name: g(r, col.name), title: g(r, col.title),
+      detail: g(r, col.detail), phone: g(r, col.phone), email: g(r, col.email),
+      cabinet: /^(y|yes|true|x)$/i.test(g(r, col.cabinet)), lead: g(r, col.lead),
+      an: g(r, col.an), at: g(r, col.at), ap: g(r, col.ap), ae: g(r, col.ae), order: g(r, col.order) });
+  }
+  return recs;
+}
+
+/* records -> a node tree (same shape as ORG) + any human-readable problems found */
+function recordsToTree(recs) {
+  const errors = [], byKey = {}, nodes = [];
+  recs.forEach((rec) => {
+    if (!rec.id) { errors.push("Row " + rec.rowNum + ": missing ID — row skipped."); return; }
+    if (byKey[rec.id]) { errors.push("Row " + rec.rowNum + ': duplicate ID "' + rec.id + '" — row skipped.'); return; }
+    const t = rec.type.toLowerCase();
+    const node = { _key: rec.id, _parentKey: rec.parent, _order: rec.order, children: [] };
+    if (t === "department") { node.dept = true; node.label = rec.name; if (rec.lead) node.person = rec.lead; }
+    else if (t === "school") { node.schools = true; node.label = rec.name; }
+    else if (t === "board") { node.board = true; node.name = rec.name; node.title = rec.title; }
+    else { node.name = rec.name; node.title = rec.title; if (rec.detail) node.sub = rec.detail;
+      if (rec.phone) node.phone = rec.phone; if (rec.email) node.email = rec.email;
+      if (rec.an) node.assistant = { name: rec.an, title: rec.at, phone: rec.ap, email: rec.ae }; }
+    if (rec.cabinet) node.cabinet = true;
+    byKey[rec.id] = node; nodes.push(node);
+  });
+  const roots = [];
+  nodes.forEach((n) => {
+    if (!n._parentKey) { roots.push(n); return; }
+    const p = byKey[n._parentKey];
+    if (!p) { errors.push('Row "' + n._key + '": Reports To "' + n._parentKey + '" was not found — shown at the top.'); roots.push(n); return; }
+    p.children.push(n);
+  });
+  const num = (v) => { const n = Number(v); return (v === "" || isNaN(n)) ? Infinity : n; };
+  const sortKids = (n) => {
+    n.children.sort((a, b) => { const x = num(a._order), y = num(b._order);
+      if (x === y) return 0; if (x === Infinity) return 1; if (y === Infinity) return -1; return x - y; });
+    n.children.forEach(sortKids);
+  };
+  if (!roots.length) return { root: null, errors: ['No top row found — exactly one row should have a blank "Reports To".'] };
+  if (roots.length > 1) errors.push("Found " + roots.length + ' top-level rows (expected one). Showing "' + roots[0]._key + '" as the top.');
+  const root = roots[0];
+  sortKids(root);
+  return { root, errors };
+}
+
+/* id helpers — ids look like "0-1-2"; ancestry by prefix */
+const isAncestorOrSelf = (a, b) => b === a || b.startsWith(a + "-");
+const ancestorsOf = (id) => { const out = []; let s = id; while (s.includes("-")) { s = s.slice(0, s.lastIndexOf("-")); out.push(s); } return out; };
+
+/* ===== Connector lines ===== */
+function VLine({ lit }) {
+  return <div style={{ width: 2, height: 18, margin: "0 auto",
+    background: lit ? "linear-gradient(#64c8ff,#4fa8d4)" : "rgba(255,255,255,0.18)",
+    boxShadow: lit ? "0 0 7px rgba(100,200,255,0.6)" : "none", borderRadius: 1, transition: "background .35s ease, box-shadow .35s ease" }} />;
+}
+
+/* ===== Assistant chip (attached beside an exec) ===== */
+function Assistant({ a, dim }) {
+  return (
+    <div style={{ position: "absolute", right: "calc(100% + 14px)", top: "50%", transform: "translateY(-50%)",
+      opacity: dim ? 0.28 : 1, filter: dim ? "grayscale(0.4)" : "none", transition: "opacity .35s ease, filter .35s ease" }}>
+      <div style={{ background: "rgba(40,46,74,0.82)", border: "2px solid rgba(255,200,150,0.4)",
+        borderRadius: 12, padding: "9px 12px", width: 134, textAlign: "center", lineHeight: 1.4, boxShadow: "0 4px 18px rgba(0,0,0,0.3)" }}>
+        <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "rgba(255,255,255,0.5)", marginBottom: 3 }}>Assistant</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#ffc896" }}>{a.name}</div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>{a.title}</div>
+        {a.phone && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 3 }}>{a.phone}</div>}
+        {a.email && <div style={{ fontSize: 10, color: "#64c8ff", wordBreak: "break-all", marginTop: 1 }}>{a.email}</div>}
+      </div>
+      <div style={{ position: "absolute", left: "100%", top: "50%", width: 26, height: 2, background: "rgba(255,255,255,0.2)" }} />
+    </div>
+  );
+}
+
+/* ===== School list (vertical, each with its own logo) =====
+   A school's logo is looked up at logos/<slug>.png where <slug> is the name
+   lowercased with non-alphanumerics removed (e.g. "A.C. Davis HS" -> "acdavishs").
+   If the file isn't there, a 🏫 glyph is shown instead. */
+function schoolSlug(name) { return String(name).toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+function splitSchools(label) { return String(label || "").split(/\s*[·;|]\s*/).map((s) => s.trim()).filter(Boolean); }
+
+function SchoolRow({ name }) {
+  const [err, setErr] = useState(false);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ width: 24, height: 24, flex: "0 0 auto", borderRadius: 6, overflow: "hidden",
+        background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {!err
+          ? <img src={"logos/" + schoolSlug(name) + ".png"} alt="" onError={() => setErr(true)}
+              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+          : <span style={{ fontSize: 13, lineHeight: 1 }}>🏫</span>}
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 600, color: "#bdffe2", textAlign: "left" }}>{name}</span>
+    </div>
+  );
+}
+
+/* ===== Node card ===== */
+function NodeCard({ node, dim, isExpanded, hasChildren, isCabinet, highlight, isHit, onClick, nodeRef }) {
+  const isDept = node.dept || node.schools;
+  const isBoard = node.board;
+  const isExec = node.board || node._depth <= 1; // board + superintendent look "exec"
+  const goldEdge = highlight;
+
+  let bg, border, color = "#fff", titleColor = "rgba(255,255,255,0.85)";
+  if (isBoard) {
+    bg = "linear-gradient(135deg,#cdd6ff 0%,#aab4ee 100%)"; border = "3px solid rgba(255,255,255,0.3)"; color = "#1a1a2e"; titleColor = "rgba(26,26,46,0.8)";
+  } else if (node._depth === 1) {
+    bg = "linear-gradient(135deg,#ffc896 0%,#ff9696 100%)"; border = "3px solid rgba(255,255,255,0.25)"; color = "#1a1a2e"; titleColor = "rgba(26,26,46,0.82)";
+  } else if (node.schools) {
+    bg = "linear-gradient(135deg,rgba(150,255,200,0.16),rgba(100,255,180,0.14))"; border = "2px solid rgba(150,255,200,0.4)"; color = "#bdffe2";
+  } else if (node.dept) {
+    bg = "rgba(255,255,255,0.05)"; border = "2px dashed rgba(255,255,255,0.22)"; color = "#d7d7e0";
+  } else {
+    bg = "rgba(255,255,255,0.09)"; border = isExpanded ? "2px solid rgba(100,200,255,0.6)" : "2px solid rgba(255,255,255,0.16)";
+  }
+  if (goldEdge) border = "2.5px solid #ffd86b";
+
+  const style = {
+    position: "relative", borderRadius: isBoard || node._depth === 1 ? 16 : 12,
+    padding: isBoard || node._depth === 1 ? "16px 24px" : isDept ? "10px 16px" : "13px 18px",
+    minWidth: (isDept && !node.schools) ? 0 : 190, maxWidth: 300,
+    background: bg, border, color,
+    cursor: hasChildren ? "pointer" : "default",
+    textAlign: node.schools ? "left" : (isBoard || node._depth === 1 || isDept) ? "center" : "left",
+    boxShadow: goldEdge ? "0 0 20px rgba(255,216,107,0.45)"
+      : isExpanded ? "0 8px 30px rgba(100,200,255,0.25)"
+      : (isBoard || node._depth === 1) ? "0 8px 32px rgba(255,200,150,0.28)" : "0 4px 16px rgba(0,0,0,0.22)",
+    opacity: dim ? 0.26 : 1,
+    filter: dim ? "grayscale(0.45)" : "none",
+  };
+
+  return (
+    <div ref={nodeRef} className={"node-card" + (isHit ? " pulse" : "")} onClick={onClick} style={style}>
+      {isCabinet && (
+        <div style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)",
+          background: "linear-gradient(135deg,#ffd86b,#ffb43b)", color: "#3a2a00", fontSize: 9, fontWeight: 800,
+          padding: "2px 9px", borderRadius: 10, whiteSpace: "nowrap", boxShadow: "0 2px 6px rgba(0,0,0,0.35)", letterSpacing: 0.4 }}>
+          ★ CABINET
+        </div>
+      )}
+
+      {node.name && <div style={{ fontSize: isBoard || node._depth === 1 ? 16 : 14, fontWeight: 700, marginBottom: 3 }}>{node.name}</div>}
+      {node.schools && node.label && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, width: "100%" }}>
+          {splitSchools(node.label).map((s, i) => <SchoolRow key={i} name={s} />)}
+        </div>
+      )}
+      {node.label && !node.name && !node.schools && <div style={{ fontSize: 13, fontWeight: 600 }}>{node.label}</div>}
+      {node.title && <div style={{ fontSize: 12, fontWeight: 600, color: titleColor }}>{node.title}</div>}
+      {node.sub && <div style={{ fontSize: 11, fontStyle: "italic", color: isBoard || node._depth === 1 ? "rgba(26,26,46,0.7)" : "rgba(255,255,255,0.68)", marginTop: 2 }}>{node.sub}</div>}
+      {node.phone && <div style={{ fontSize: 11, color: isBoard || node._depth === 1 ? "rgba(26,26,46,0.72)" : "rgba(255,255,255,0.75)", marginTop: 4 }}>{node.phone}</div>}
+      {node.email && <div style={{ fontSize: 11, color: isBoard || node._depth === 1 ? "rgba(26,26,46,0.85)" : "#64c8ff", wordBreak: "break-all", marginTop: 1 }}>{node.email}</div>}
+      {node.person && (
+        <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: "#ffc896",
+          background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,200,150,0.35)", borderRadius: 8, padding: "3px 8px" }}>
+          {node.person}
+        </div>
+      )}
+
+      {hasChildren && (
+        <div style={{ marginTop: 7, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase",
+          color: isExpanded ? "#a8ffda" : (isBoard || node._depth === 1 ? "rgba(26,26,46,0.6)" : "#64c8ff") }}>
+          {isExpanded ? "▲ Expanded" : "▼ " + node.children.length + " report" + (node.children.length > 1 ? "s" : "")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== Recursive tree ===== */
+function TreeNode({ node, expanded, closing, activeId, cabinetMode, hitId, onToggle, registerRef, index = 0 }) {
+  const id = node._id;
+  const hasChildren = node.children && node.children.length > 0;
+  const isExpanded = expanded.has(id);
+  const isClosing = closing && closing.has(id);
+  const isCabinet = !!node.cabinet;
+  // Cabinet highlight covers the cabinet members AND the Superintendent (the depth-1 node).
+  const isHighlighted = isCabinet || node._depth === 1;
+
+  // Only the Cabinet-highlight feature dims nodes now; the active-path lighting was removed.
+  const dim = cabinetMode && !isHighlighted;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ position: "relative", margin: node.assistant ? "0 150px" : 0,
+        animationDelay: (Math.min(index, 8) * 0.04) + "s" }} className="grow-in">
+        {node.assistant && <Assistant a={node.assistant} dim={dim} />}
+        <NodeCard
+          node={node} dim={dim} isExpanded={isExpanded} hasChildren={hasChildren}
+          isCabinet={isCabinet} highlight={cabinetMode && isHighlighted} isHit={hitId === id}
+          nodeRef={(el) => registerRef(id, el)}
+          onClick={() => hasChildren && onToggle(id)}
+        />
+      </div>
+
+      {hasChildren && isExpanded && (
+        <div className={isClosing ? "subtree-collapse" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <VLine lit={false} />
+          <div style={{ display: "flex", alignItems: "flex-start" }}>
+            {node.children.map((c, idx) => {
+              const n = node.children.length;
+              const first = idx === 0, last = idx === n - 1, single = n === 1;
+              const busOn = false;
+              const busBg = busOn ? "rgba(100,200,255,0.55)" : "rgba(255,255,255,0.18)";
+              const busSh = busOn ? "0 0 6px rgba(100,200,255,0.5)" : "none";
+              return (
+                <div key={c._id} style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 14px" }}>
+                  {!single && (
+                    <React.Fragment>
+                      <div style={{ position: "absolute", top: 0, left: 0, width: "50%", height: 2, background: first ? "transparent" : busBg, boxShadow: first ? "none" : busSh, transition: "background .35s ease, box-shadow .35s ease" }} />
+                      <div style={{ position: "absolute", top: 0, right: 0, width: "50%", height: 2, background: last ? "transparent" : busBg, boxShadow: last ? "none" : busSh, transition: "background .35s ease, box-shadow .35s ease" }} />
+                    </React.Fragment>
+                  )}
+                  <VLine lit={busOn} />
+                  <TreeNode node={c} index={idx} expanded={expanded} closing={closing} activeId={activeId} cabinetMode={cabinetMode}
+                    hitId={hitId} onToggle={onToggle} registerRef={registerRef} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== Cabinet connector overlay (dashed gold links across the tree) ===== */
+function CabinetLinks({ refs, canvasEl, cabinetIds, hubId, version }) {
+  const [segs, setSegs] = useState([]);
+  useLayoutEffect(() => {
+    if (!canvasEl) return;
+    const c = canvasEl.getBoundingClientRect();
+    const scale = c.width / canvasEl.offsetWidth || 1;
+    const measure = (id) => {
+      const el = refs.current[id];
+      if (!el || !el.isConnected) return null; // skip collapsed/unmounted members
+      const r = el.getBoundingClientRect();
+      return { x: (r.left + r.width / 2 - c.left) / scale, y: (r.top + r.height / 2 - c.top) / scale };
+    };
+    const hub = hubId ? measure(hubId) : null;
+    const s = [];
+    if (hub) {
+      // spoke from the Superintendent out to each visible cabinet member
+      cabinetIds.forEach((id) => { if (id === hubId) return; const p = measure(id); if (p) s.push([hub, p]); });
+    } else {
+      const pts = cabinetIds.map(measure).filter(Boolean);
+      for (let i = 0; i < pts.length - 1; i++) s.push([pts[i], pts[i + 1]]);
+    }
+    setSegs(s);
+  }, [version, canvasEl, cabinetIds, hubId]);
+
+  if (!segs.length) return null;
+  return (
+    <svg style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }}>
+      {segs.map(([a, b], i) => (
+        <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#ffd86b" strokeWidth="2.5"
+          strokeDasharray="7 5" opacity="0.85" style={{ animation: "dash 0.7s linear infinite" }} />
+      ))}
+    </svg>
+  );
+}
+
+/* ===== Minimap ===== */
+function Minimap({ viewportRef, canvasRef, refs, nodesById, tx, ty, scale, layoutVersion, onJump }) {
+  const W = 200, H = 150, PAD = 8;
+  // geometry + node silhouette, recomputed only when the tree structure changes
+  const [geo, setGeo] = useState(null);
+  useLayoutEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const cw = cv.offsetWidth, ch = cv.offsetHeight;
+    if (!cw || !ch) return;
+    const cRect = cv.getBoundingClientRect();
+    const liveScale = (cRect.width / cw) || 1; // actual on-screen scale (may differ mid-animation)
+    // node boxes normalized to content coordinates (transform-invariant)
+    const boxes = [];
+    Object.keys(refs.current).forEach((id) => {
+      const el = refs.current[id];
+      if (!el || !el.isConnected) return;
+      const r = el.getBoundingClientRect();
+      boxes.push({
+        x: (r.left - cRect.left) / liveScale, y: (r.top - cRect.top) / liveScale,
+        w: r.width / liveScale, h: r.height / liveScale,
+        cab: !!(nodesById[id] && nodesById[id].cabinet),
+      });
+    });
+    const s = Math.min((W - PAD * 2) / cw, (H - PAD * 2) / ch);
+    setGeo({ s, cw, ch, ox: (W - cw * s) / 2, oy: (H - ch * s) / 2, boxes });
+  }, [layoutVersion]);
+
+  // viewport indicator from current transform (cheap, every render)
+  let ind = null;
+  if (geo) {
+    const vp = viewportRef.current;
+    const vw = vp ? vp.clientWidth : 0, vh = vp ? vp.clientHeight : 0;
+    ind = { x: geo.ox + (-tx / scale) * geo.s, y: geo.oy + (-ty / scale) * geo.s,
+            w: (vw / scale) * geo.s, h: (vh / scale) * geo.s };
+  }
+
+  const handle = (e) => {
+    if (!geo) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mx = e.clientX - rect.left - geo.ox, my = e.clientY - rect.top - geo.oy;
+    onJump(mx / geo.s, my / geo.s); // content coords to center on
+  };
+
+  return (
+    <div onClick={handle} style={{ position: "absolute", left: 18, bottom: 18, width: W, height: H,
+      background: "rgba(15,20,40,0.8)", border: "1.5px solid rgba(255,255,255,0.18)", borderRadius: 10,
+      backdropFilter: "blur(8px)", cursor: "pointer", overflow: "hidden", boxShadow: "0 6px 20px rgba(0,0,0,0.35)" }}>
+      <div style={{ position: "absolute", left: 8, top: 6, fontSize: 9, letterSpacing: 1, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", zIndex: 2 }}>Map</div>
+      {geo && geo.boxes.map((b, i) => (
+        <div key={i} style={{ position: "absolute",
+          left: geo.ox + b.x * geo.s, top: geo.oy + b.y * geo.s,
+          width: Math.max(2, b.w * geo.s), height: Math.max(2, b.h * geo.s),
+          background: b.cab ? "rgba(255,216,107,0.9)" : "rgba(160,200,255,0.55)",
+          borderRadius: 1.5 }} />
+      ))}
+      {ind && (
+        <div style={{ position: "absolute", left: ind.x, top: ind.y, width: ind.w, height: ind.h,
+          border: "1.5px solid #64c8ff", background: "rgba(100,200,255,0.14)", borderRadius: 2,
+          boxShadow: "0 0 8px rgba(100,200,255,0.5)", pointerEvents: "none" }} />
+      )}
+    </div>
+  );
+}
+
+/* ===== Main App ===== */
+function App() {
+  const [expanded, setExpanded] = useState(() => new Set(["0", "0-0"])); // Board + Superintendent open
+  const [closing, setClosing] = useState(() => new Set());                // branches currently animating shut
+  const [activeId, setActiveId] = useState("0-0");
+  const [cabinetMode, setCabinetMode] = useState(false);
+  const [search, setSearch] = useState("");
+  const [hitId, setHitId] = useState(null);
+  const [layoutVersion, setLayoutVersion] = useState(0);
+
+  // data loaded from the Google Sheet (or the embedded backup)
+  const [data, setData] = useState(null);          // { root, byId, people, cabinetIds }
+  const [status, setStatus] = useState("loading"); // loading | live | backup
+  const [notice, setNotice] = useState("");        // shown when the live sheet can't be reached
+  const [issues, setIssues] = useState([]);        // validation messages about specific rows
+
+  // pan/zoom transform
+  const [tx, setTx] = useState(0), [ty, setTy] = useState(60), [scale, setScale] = useState(1);
+  const [animate, setAnimate] = useState(false);
+
+  const viewportRef = useRef(null);
+  const canvasRef = useRef(null);
+  const nodeRefs = useRef({});
+  const recenterTo = useRef("0-0"); // center the Superintendent on first paint
+  const drag = useRef(null);
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded; // always-current snapshot for the toggle handler
+
+  const registerRef = useCallback((id, el) => { if (el) nodeRefs.current[id] = el; }, []);
+
+  const results = (data && search.trim().length > 1)
+    ? data.people.filter((p) => (p.name + " " + p.title + " " + p.sub).toLowerCase().includes(search.toLowerCase())).slice(0, 8)
+    : [];
+
+  /* load the org data once on startup: live Google Sheet, falling back to the embedded copy */
+  useEffect(() => {
+    let cancelled = false;
+    const applied = (built, st, noticeMsg, errs) => {
+      if (cancelled) return;
+      setData(built); setStatus(st); setNotice(noticeMsg || ""); setIssues(errs || []);
+      recenterTo.current = "0-0"; setLayoutVersion((v) => v + 1);
+    };
+    const useBackup = (noticeMsg) => applied(buildTree(ORG), "backup", noticeMsg, []);
+    const url = csvEndpoint(SHEET_URL);
+    if (!url) { useBackup(""); return; }
+    fetch(url + (url.indexOf("?") >= 0 ? "&" : "?") + "_cb=" + Date.now())
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+      .then((text) => {
+        const parsed = recordsToTree(csvToRecords(text));
+        if (!parsed.root) throw new Error("no root row");
+        applied(buildTree(parsed.root), "live", "", parsed.errors);
+      })
+      .catch(() => useBackup('Couldn’t reach the live Google Sheet, so this is the saved backup copy. (Make sure the sheet is shared as “Anyone with the link: Viewer”.)'));
+    return () => { cancelled = true; };
+  }, []);
+
+  /* expand/collapse a node */
+  const CLOSE_MS = 450; // keep in sync with .subtree-collapse duration
+  const onToggle = useCallback((id) => {
+    if (expandedRef.current.has(id)) {
+      // animated collapse: play the shrink/fade, then actually remove the subtree
+      const parent = id.includes("-") ? id.slice(0, id.lastIndexOf("-")) : id;
+      setClosing((c) => { const n = new Set(c); n.add(id); return n; });
+      setActiveId(parent);
+      setTimeout(() => {
+        setExpanded((p) => {
+          const next = new Set(p);
+          Array.from(next).forEach((k) => { if (isAncestorOrSelf(id, k)) next.delete(k); });
+          return next;
+        });
+        setClosing((c) => { const n = new Set(c); n.delete(id); return n; });
+        recenterTo.current = parent;
+        setLayoutVersion((v) => v + 1);
+      }, CLOSE_MS);
+    } else {
+      setExpanded((p) => { const next = new Set(p); next.add(id); return next; });
+      setActiveId(id);
+      recenterTo.current = id;
+      setLayoutVersion((v) => v + 1);
+    }
+  }, []);
+
+  /* search -> open path + recenter + pulse */
+  const goToPerson = useCallback((id) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      ancestorsOf(id).forEach((a) => next.add(a));
+      next.add(id);
+      return next;
+    });
+    setActiveId(id);
+    setCabinetMode(false);
+    setSearch("");
+    recenterTo.current = id;
+    setHitId(id);
+    setLayoutVersion((v) => v + 1);
+    setTimeout(() => setHitId(null), 2800);
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    setExpanded(new Set(["0", "0-0"]));
+    setActiveId("0-0");
+    recenterTo.current = "0-0";
+    setLayoutVersion((v) => v + 1);
+  }, []);
+
+  /* Highlight Cabinet: when turning on, expand every branch needed so all cabinet
+     members are visible, then recenter on the Superintendent. */
+  const toggleCabinet = useCallback(() => {
+    const turningOn = !cabinetMode;
+    if (turningOn && data) {
+      setExpanded((prev) => {
+        const e = new Set(prev);
+        data.cabinetIds.forEach((cid) => ancestorsOf(cid).forEach((a) => e.add(a)));
+        return e;
+      });
+      recenterTo.current = "0-0"; // the Superintendent
+    }
+    setCabinetMode(turningOn);
+    setLayoutVersion((v) => v + 1);
+  }, [cabinetMode, data]);
+
+  /* recenter after layout changes */
+  useLayoutEffect(() => {
+    const id = recenterTo.current;
+    if (!id) return;
+    recenterTo.current = null;
+    const el = nodeRefs.current[id], vp = viewportRef.current;
+    if (!el || !vp) return;
+    const r = el.getBoundingClientRect(), v = vp.getBoundingClientRect();
+    const targetX = v.left + v.width / 2, targetY = v.top + v.height * 0.32;
+    setAnimate(true);
+    setTx((t) => t + (targetX - (r.left + r.width / 2)));
+    setTy((t) => t + (targetY - (r.top + r.height / 2)));
+  }, [layoutVersion]);
+
+  /* pan */
+  const onPointerDown = (e) => {
+    if (e.target.closest(".node-card")) return; // let cards handle clicks
+    drag.current = { x: e.clientX, y: e.clientY, tx, ty, moved: false };
+    setAnimate(false);
+  };
+  const onPointerMove = (e) => {
+    if (!drag.current) return;
+    const dx = e.clientX - drag.current.x, dy = e.clientY - drag.current.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.current.moved = true;
+    setTx(drag.current.tx + dx); setTy(drag.current.ty + dy);
+  };
+  const onPointerUp = () => { drag.current = null; };
+
+  /* zoom toward cursor */
+  const onWheel = (e) => {
+    e.preventDefault();
+    const vp = viewportRef.current.getBoundingClientRect();
+    const cx = e.clientX - vp.left, cy = e.clientY - vp.top;
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    setScale((s) => {
+      const ns = Math.min(2.2, Math.max(0.25, s * factor));
+      const k = ns / s;
+      setTx((t) => cx - (cx - t) * k);
+      setTy((t) => cy - (cy - t) * k);
+      return ns;
+    });
+    setAnimate(false);
+  };
+
+  const zoomBy = (factor) => {
+    const vp = viewportRef.current.getBoundingClientRect();
+    const cx = vp.width / 2, cy = vp.height / 2;
+    setAnimate(true);
+    setScale((s) => {
+      const ns = Math.min(2.2, Math.max(0.25, s * factor));
+      const k = ns / s;
+      setTx((t) => cx - (cx - t) * k);
+      setTy((t) => cy - (cy - t) * k);
+      return ns;
+    });
+  };
+
+  const minimapJump = (contentX, contentY) => {
+    const vp = viewportRef.current;
+    setAnimate(true);
+    setTx(vp.clientWidth / 2 - contentX * scale);
+    setTy(vp.clientHeight / 2 - contentY * scale);
+  };
+
+  if (!data) {
+    return (
+      <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <Logo size={72} />
+        <div style={{ fontSize: 16, color: "rgba(255,255,255,0.8)" }}>Loading organizational chart…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
+      {/* Toolbar */}
+      <div style={{ position: "absolute", top: 14, left: 14, right: 14, zIndex: 20, display: "flex", alignItems: "center",
+        gap: 14, flexWrap: "wrap", padding: "12px 18px", background: "rgba(255,255,255,0.08)", backdropFilter: "blur(15px)",
+        borderRadius: 16, border: "1.5px solid rgba(255,255,255,0.12)", boxShadow: "0 8px 30px rgba(0,0,0,0.3)" }}>
+        <Logo size={40} chip />
+        <div style={{ marginRight: "auto" }}>
+          <div style={{ fontSize: 19, fontWeight: 700, color: "#fff", lineHeight: 1.1 }}>Yakima School District</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>One organization · click a card to grow its branch</div>
+        </div>
+
+        <div style={{ position: "relative" }}>
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍 Search people…"
+            style={{ width: 230, fontSize: 14, padding: "10px 14px", borderRadius: 10, outline: "none",
+              border: "1.5px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.1)", color: "#fff" }} />
+          {results.length > 0 && (
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "rgba(20,25,48,0.97)",
+              backdropFilter: "blur(12px)", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.18)", overflow: "hidden",
+              boxShadow: "0 12px 30px rgba(0,0,0,0.45)", zIndex: 30 }}>
+              {results.map((p) => (
+                <div key={p.id} onClick={() => goToPerson(p.id)}
+                  style={{ padding: "9px 13px", cursor: "pointer", fontSize: 13, color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(100,200,255,0.16)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  <b>{p.name}</b>{p.title ? <span style={{ color: "rgba(255,255,255,0.65)" }}> — {p.title}</span> : ""}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button className={"tool-btn btn-gold" + (cabinetMode ? " on" : "")} onClick={toggleCabinet}>
+          ★ {cabinetMode ? "Cabinet shown" : "Highlight Cabinet"}
+        </button>
+        <button className="tool-btn btn-red" onClick={collapseAll}>↑ Collapse All</button>
+
+        <div title={status === "live" ? "Loaded live from your Google Sheet" : "Showing the built-in backup copy"}
+          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600,
+            color: status === "live" ? "#7cffb0" : "#ffd86b" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "currentColor", boxShadow: "0 0 8px currentColor" }} />
+          {status === "live" ? "Live data" : "Backup data"}
+        </div>
+
+        {(notice || issues.length > 0) && (
+          <div style={{ flexBasis: "100%", marginTop: 2, padding: "10px 14px", borderRadius: 10,
+            background: "rgba(255,216,107,0.14)", border: "1px solid rgba(255,216,107,0.4)",
+            color: "#ffe6a6", fontSize: 12.5, lineHeight: 1.55 }}>
+            {notice && <div style={{ fontWeight: 700, marginBottom: issues.length ? 5 : 0 }}>⚠ {notice}</div>}
+            {issues.slice(0, 6).map((m, i) => <div key={i}>• {m}</div>)}
+            {issues.length > 6 && <div>• …and {issues.length - 6} more.</div>}
+          </div>
+        )}
+      </div>
+
+      {/* Viewport */}
+      <div ref={viewportRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onWheel={onWheel}
+        style={{ position: "absolute", inset: 0, overflow: "hidden", cursor: drag.current ? "grabbing" : "grab", touchAction: "none" }}>
+        <div ref={canvasRef} style={{ position: "absolute", left: 0, top: 0, transformOrigin: "0 0",
+          transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+          transition: animate ? "transform 0.65s cubic-bezier(0.65, 0, 0.35, 1)" : "none",
+          padding: "120px 80px 80px", width: "max-content" }}>
+          {cabinetMode && <CabinetLinks refs={nodeRefs} canvasEl={canvasRef.current} cabinetIds={data.cabinetIds} hubId="0-0" version={layoutVersion + "-" + tx + "-" + scale} />}
+          <TreeNode node={data.root} expanded={expanded} closing={closing} activeId={activeId} cabinetMode={cabinetMode}
+            hitId={hitId} onToggle={onToggle} registerRef={registerRef} />
+        </div>
+      </div>
+
+      {/* Zoom controls */}
+      <div style={{ position: "absolute", right: 18, bottom: 18, zIndex: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+        <button className="zoom-btn" onClick={() => zoomBy(1.2)}>+</button>
+        <button className="zoom-btn" onClick={() => zoomBy(1 / 1.2)}>−</button>
+        <button className="zoom-btn" style={{ fontSize: 13, fontWeight: 700 }} onClick={() => { setAnimate(true); setScale(1); recenterTo.current = activeId; setLayoutVersion((v) => v + 1); }}>⤢</button>
+      </div>
+
+      <Minimap viewportRef={viewportRef} canvasRef={canvasRef} refs={nodeRefs} nodesById={data.byId} tx={tx} ty={ty} scale={scale}
+        layoutVersion={layoutVersion} onJump={minimapJump} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>

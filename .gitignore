@@ -1,0 +1,10 @@
+# Local tooling — not part of the project
+.claude/
+.superpowers/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+node_modules/
