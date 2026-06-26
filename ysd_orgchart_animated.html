@@ -677,12 +677,14 @@ function App() {
   // pan/zoom transform
   const [tx, setTx] = useState(0), [ty, setTy] = useState(60), [scale, setScale] = useState(1);
   const [animate, setAnimate] = useState(false);
+  const [scrollHint, setScrollHint] = useState(false); // brief "Ctrl+scroll to zoom" nudge
 
   const viewportRef = useRef(null);
   const canvasRef = useRef(null);
   const nodeRefs = useRef({});
   const recenterTo = useRef("0-0"); // center the Superintendent on first paint
   const drag = useRef(null);
+  const hintTimer = useRef(null);
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded; // always-current snapshot for the toggle handler
 
@@ -810,6 +812,14 @@ function App() {
 
   /* zoom toward cursor */
   const onWheel = (e) => {
+    // Embedded-friendly: a plain scroll passes through to the host page.
+    // Hold Ctrl/Cmd (or use the +/- buttons) to zoom the chart.
+    if (!e.ctrlKey && !e.metaKey) {
+      setScrollHint(true);
+      clearTimeout(hintTimer.current);
+      hintTimer.current = setTimeout(() => setScrollHint(false), 1300);
+      return; // do NOT preventDefault -> the page scrolls normally
+    }
     e.preventDefault();
     const vp = viewportRef.current.getBoundingClientRect();
     const cx = e.clientX - vp.left, cy = e.clientY - vp.top;
@@ -863,7 +873,7 @@ function App() {
         <Logo size={40} chip />
         <div style={{ marginRight: "auto" }}>
           <div style={{ fontSize: 19, fontWeight: 700, color: "#fff", lineHeight: 1.1 }}>Yakima School District</div>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>One organization · click a card to grow its branch</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>One organization · click a card to expand it · Ctrl + scroll or +/− to zoom</div>
         </div>
 
         <div style={{ position: "relative" }}>
@@ -926,10 +936,20 @@ function App() {
 
       {/* Zoom controls */}
       <div style={{ position: "absolute", right: 18, bottom: 18, zIndex: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-        <button className="zoom-btn" onClick={() => zoomBy(1.2)}>+</button>
-        <button className="zoom-btn" onClick={() => zoomBy(1 / 1.2)}>−</button>
-        <button className="zoom-btn" style={{ fontSize: 13, fontWeight: 700 }} onClick={() => { setAnimate(true); setScale(1); recenterTo.current = activeId; setLayoutVersion((v) => v + 1); }}>⤢</button>
+        <button className="zoom-btn" title="Zoom in (or Ctrl + scroll)" onClick={() => zoomBy(1.2)}>+</button>
+        <button className="zoom-btn" title="Zoom out (or Ctrl + scroll)" onClick={() => zoomBy(1 / 1.2)}>−</button>
+        <button className="zoom-btn" title="Reset zoom" style={{ fontSize: 13, fontWeight: 700 }} onClick={() => { setAnimate(true); setScale(1); recenterTo.current = activeId; setLayoutVersion((v) => v + 1); }}>⤢</button>
       </div>
+
+      {/* Transient nudge when someone scrolls over the chart without the zoom modifier */}
+      {scrollHint && (
+        <div style={{ position: "absolute", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 30,
+          background: "rgba(15,20,40,0.92)", color: "#fff", fontSize: 13, fontWeight: 600,
+          padding: "9px 16px", borderRadius: 20, border: "1.5px solid rgba(255,255,255,0.2)",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.4)", pointerEvents: "none", animation: "fadeIn 0.15s ease-out" }}>
+          Hold <b>Ctrl</b> + scroll to zoom, or use the + / − buttons
+        </div>
+      )}
 
       <Minimap viewportRef={viewportRef} canvasRef={canvasRef} refs={nodeRefs} nodesById={data.byId} tx={tx} ty={ty} scale={scale}
         layoutVersion={layoutVersion} onJump={minimapJump} />
