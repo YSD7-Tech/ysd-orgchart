@@ -39,6 +39,12 @@ filter if needed):
 - `*.github.io` — the page itself
 - `cdnjs.cloudflare.com` — React / Babel
 - `docs.google.com` — the live Google Sheet
+- `fonts.googleapis.com` / `fonts.gstatic.com` — the Karla & Allura brand fonts
+
+## Branding
+Styled to the YSD brand guide: Denim Blue background, Yakima Sunshine highlights, Columbia
+Blue / Pear Green accents, the **Karla** typeface (Allura for the "Yakima" wordmark), the official
+reversed district logo, and each school's mascot logo (in `logos/`).
 
 ## Preview locally
 The live Google-Sheet connection only works over `http://` / `https://`. Opened straight from disk
