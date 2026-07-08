@@ -79,7 +79,7 @@ or the school falls back to the 🏫 placeholder.
 ## Programs
 Rows with Type = `Program` work just like `School` rows — one or more names in the **Name** cell,
 separated by `·` (e.g. `GEAR UP · TBIP · Migrant Education`). They're listed the same way, but shown
-in lavender with a simple bullet instead of a logo, since a program isn't a building.
+with a simple bullet instead of a logo, since a program isn't a building.
 
 ## Safety net
 A backup copy of the data is built into the chart. If the sheet is ever unreachable, the chart still

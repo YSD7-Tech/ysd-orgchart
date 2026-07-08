@@ -436,8 +436,8 @@ function ProgramRow({ name }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
       <span style={{ width: 8, height: 8, flex: "0 0 auto", borderRadius: "50%",
-        background: "#b388e8", boxShadow: "0 0 6px rgba(179,136,232,0.65)" }} />
-      <span style={{ fontSize: 12, fontWeight: 600, color: "#e4d6fb", textAlign: "left" }}>{name}</span>
+        background: "rgba(255,255,255,0.6)" }} />
+      <span style={{ fontSize: 12, fontWeight: 600, color: "#fff", textAlign: "left" }}>{name}</span>
     </div>
   );
 }
@@ -457,8 +457,6 @@ function NodeCard({ node, dim, isExpanded, hasChildren, isCabinet, highlight, is
     bg = "linear-gradient(135deg,#fcf05b 0%,#f4e23f 100%)"; border = "3px solid rgba(255,255,255,0.35)"; color = "#053c53"; titleColor = "rgba(5,60,83,0.85)";
   } else if (node.schools) {
     bg = "linear-gradient(135deg,rgba(171,211,116,0.18),rgba(9,125,90,0.16))"; border = "2px solid rgba(171,211,116,0.5)"; color = "#d9f3bf";
-  } else if (node.programs) {
-    bg = "linear-gradient(135deg,rgba(179,136,232,0.18),rgba(106,66,171,0.16))"; border = "2px solid rgba(179,136,232,0.5)"; color = "#e4d6fb";
   } else if (node.dept) {
     bg = "rgba(255,255,255,0.05)"; border = "2px dashed rgba(149,195,209,0.5)"; color = "#dbe7ec";
   } else {
