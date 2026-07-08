@@ -66,10 +66,15 @@ into `logos/` named after the school with all spaces/punctuation removed and low
 isn't there, a 🏫 placeholder shows instead.
 
 Filenames for the current schools:
-`adamselem.png`, `gilbertelem.png`, `hooverelem.png`, `franklinms.png`, `lewisclarkms.png`,
+`adamselem.png`, `gilbertelem.png`, `hooverelem.png`, `franklinmiddle.png`, `lewisclarkmiddle.png`,
 `rooseveltelem.png`, `garfieldelem.png`, `mlkjrelem.png`, `nobhillelem.png`, `acdavishs.png`,
 `ddeisenhowerhs.png` (e.g. "A.C. Davis HS" → `acdavishs.png`). Add a new school's name in the sheet
 the same way (separate multiple schools in one cell with `·`).
+
+**Important:** the filename must match the school's exact Name text in the sheet (lowercased,
+punctuation/spaces stripped) — if the sheet says "Franklin Middle", the file must be
+`franklinmiddle.png`, not `franklinms.png`. If a sheet name changes, rename the logo file to match,
+or the school falls back to the 🏫 placeholder.
 
 ## Programs
 Rows with Type = `Program` work just like `School` rows — one or more names in the **Name** cell,
