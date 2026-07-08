@@ -7,6 +7,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
   body { font-family: "Karla", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -49,6 +51,7 @@
   .btn-gold { background: linear-gradient(135deg, #fcf05b 0%, #f4e23f 100%); color: #053c53; box-shadow: 0 4px 15px rgba(252,240,91,0.3); }
   .btn-gold.on { box-shadow: 0 0 0 3px rgba(252,240,91,0.55), 0 4px 18px rgba(244,226,63,0.5); }
   .btn-ghost { background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.2); }
+  .btn-ghost.on { background: rgba(0,155,182,0.35); border-color: rgba(0,155,182,0.7); }
 
   .zoom-btn { width: 40px; height: 40px; border-radius: 10px; font-size: 22px; font-weight: 700; line-height: 1;
               background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.2); color: #fff; cursor: pointer;
@@ -383,6 +386,144 @@ function recordsToTree(recs) {
 const isAncestorOrSelf = (a, b) => b === a || b.startsWith(a + "-");
 const ancestorsOf = (id) => { const out = []; let s = id; while (s.includes("-")) { s = s.slice(0, s.lastIndexOf("-")); out.push(s); } return out; };
 
+/* ===== Mermaid diagram generation (Cabinet Summary / a manager's team) =====
+   Produces flowchart syntax from the live tree data; mermaid.js (loaded via CDN)
+   auto-lays-out the boxes and connector lines, so this only has to describe the
+   graph — no manual box-positioning math, unlike a hand-drawn org chart. */
+mermaid.initialize({ startOnLoad: false, securityLevel: "loose", flowchart: { htmlLabels: true, curve: "basis" } });
+
+const mermaidId = (id) => "n" + String(id).replace(/[^a-zA-Z0-9]/g, "_");
+const mermaidEscape = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const MERMAID_CLASSDEFS = [
+  "classDef person fill:#ffffff,stroke:#1d1d1b,stroke-width:1px,color:#1d1d1b;",
+  "classDef board fill:#eef3f6,stroke:#053c53,stroke-width:2px,color:#053c53;",
+  "classDef dept fill:#ffffff,stroke:#009bb6,stroke-width:1px,color:#1d1d1b,stroke-dasharray: 3 2;",
+  "classDef school fill:#fff7d6,stroke:#c9a227,stroke-width:1px,color:#1d1d1b;",
+  "classDef program fill:#efe6fb,stroke:#8a63c9,stroke-width:1px,color:#1d1d1b;",
+  "classDef assistant fill:#f4f4f4,stroke:#888888,stroke-width:1px,color:#333333;",
+  "classDef note fill:#f9f9f9,stroke:#bbbbbb,stroke-width:1px,color:#888888,stroke-dasharray: 2 2;",
+].join("\n");
+
+function mermaidClassFor(node) {
+  if (node.schools) return "school";
+  if (node.programs) return "program";
+  if (node.dept) return "dept";
+  return "person";
+}
+
+function mermaidLabel(node) {
+  const lines = [];
+  if (node.schools || node.programs) {
+    splitList(node.label).forEach((s) => lines.push(mermaidEscape(s)));
+  } else if (node.label && !node.name) {
+    lines.push("<b>" + mermaidEscape(node.label) + "</b>");
+    if (node.person) lines.push(mermaidEscape(node.person));
+  } else {
+    lines.push("<b>" + mermaidEscape(node.name) + "</b>");
+    if (node.title) lines.push(mermaidEscape(node.title));
+    if (node.sub) lines.push("<i>" + mermaidEscape(node.sub) + "</i>");
+    if (node.phone) lines.push(mermaidEscape(node.phone));
+    if (node.email) lines.push(mermaidEscape(node.email));
+  }
+  return lines.join("<br/>");
+}
+
+function mermaidNodeDef(node, cls) {
+  return mermaidId(node._id) + '["' + mermaidLabel(node) + '"]:::' + (cls || mermaidClassFor(node));
+}
+
+function mermaidAssistantLines(node, lines, edges) {
+  if (!node.assistant) return;
+  const a = node.assistant, aid = mermaidId(node._id) + "_asst";
+  const parts = [mermaidEscape(a.name)];
+  if (a.title) parts.push(mermaidEscape(a.title));
+  if (a.phone) parts.push(mermaidEscape(a.phone));
+  lines.push("  " + aid + '["' + parts.join("<br/>") + '"]:::assistant');
+  edges.push(aid + " --- " + mermaidId(node._id));
+}
+
+/* recursively emits one node's box + its subtree, stopping (and noting it) at any
+   node in `stopIds` OTHER than the page's own root — that person has their own
+   Print Friendly page, so their whole org isn't duplicated here. */
+function walkForMermaid(node, parentMermaidId, stopIds, lines, edges, seen) {
+  const mid = mermaidId(node._id);
+  if (!seen.has(node._id)) {
+    seen.add(node._id);
+    lines.push("  " + mermaidNodeDef(node));
+    mermaidAssistantLines(node, lines, edges);
+  }
+  if (parentMermaidId) edges.push(parentMermaidId + " --> " + mid);
+  if (stopIds.has(node._id)) {
+    const stubId = mid + "_stub";
+    lines.push("  " + stubId + '["(their team has its own diagram)"]:::note');
+    edges.push(mid + " -.-> " + stubId);
+    return;
+  }
+  (node.children || []).forEach((c) => walkForMermaid(c, mid, stopIds, lines, edges, seen));
+}
+
+/* a manager's page: the chain of who they report to (no siblings), then their own
+   full team — stopping at anyone else with their own Print Friendly page. `extraIds`
+   are grafted in as additional direct children of the root even if they don't
+   actually report to them (a hand-requested grouping, not the real reporting line). */
+function buildMermaidForId(data, id, stopIds, extraIds) {
+  const lines = ["flowchart TD"], edges = [], seen = new Set();
+  const stops = new Set(stopIds); stops.delete(id); // never stop at the page's own root
+  let parentMermaidId = null;
+  ancestorsOf(id).reverse().forEach((aid) => {
+    const n = data.byId[aid];
+    if (!n) return;
+    const mid = mermaidId(n._id);
+    lines.push("  " + mermaidNodeDef(n));
+    if (parentMermaidId) edges.push(parentMermaidId + " --> " + mid);
+    parentMermaidId = mid;
+  });
+  walkForMermaid(data.byId[id], parentMermaidId, stops, lines, edges, seen);
+  (extraIds || []).forEach((extraId) => {
+    const extraNode = data.byId[extraId];
+    if (extraNode) walkForMermaid(extraNode, mermaidId(id), stops, lines, edges, seen);
+  });
+  return lines.concat(edges).join("\n") + "\n" + MERMAID_CLASSDEFS;
+}
+
+/* Hand-curated "Print Friendly" pages — YSD wants specific groupings rather than
+   strictly one page per cabinet-flagged person: Trevor's page absorbs Fiscus's and
+   Noe's sections (they already report to him directly, and no longer get their own
+   page — no `extra` graft needed, they show up from the normal tree walk once
+   they're removed from the stop-list below). Gonzalez likewise needs no override —
+   he already falls under Kuper's team via Technology in the real reporting line.
+   `extra` is only for genuinely-not-a-descendant cases (there are none right now).
+   Keyed by the sheet's own "ID" column (via each node's `_key`), which is stable
+   even if the tree position/depth changes; only present on live-sheet data, not
+   the embedded backup. */
+const PRINT_FRIENDLY_CONFIG = [
+  { key: "supt", extra: [] },
+  { key: "kuper", extra: [] },
+  { key: "larsen", extra: [] },
+  { key: "lucero", extra: [] },
+];
+
+function findByKey(data, key) {
+  return Object.values(data.byId).find((n) => n._key === key) || null;
+}
+
+/* the condensed Superintendent + Cabinet page */
+function buildCabinetSummaryMermaid(data) {
+  const supt = data.byId["0-0"];
+  const lines = ["flowchart TD"], edges = [];
+  lines.push("  " + mermaidNodeDef(supt, "board"));
+  mermaidAssistantLines(supt, lines, edges);
+  // no subgraph title — the dotted arrows into the box cross right through it, and
+  // the modal's own header already says "Superintendent's Cabinet"
+  lines.push("  subgraph cabinet [\" \"]");
+  data.cabinetIds.forEach((id) => lines.push("    " + mermaidNodeDef(data.byId[id])));
+  lines.push("  end");
+  data.cabinetIds.forEach((id) => edges.push(mermaidId(supt._id) + " -.-> " + mermaidId(id)));
+  lines.push("  style cabinet fill:none,stroke:#053c53,stroke-width:1px,stroke-dasharray: 6 4;");
+  return lines.concat(edges).join("\n") + "\n" + MERMAID_CLASSDEFS;
+}
+
 /* ===== Connector lines ===== */
 function VLine({ lit }) {
   return <div style={{ width: 2, height: 18, margin: "0 auto",
@@ -691,6 +832,82 @@ function Minimap({ viewportRef, canvasRef, refs, nodesById, tx, ty, scale, layou
   );
 }
 
+/* Rasterizes the live rendered diagram to a PNG and downloads it — sidesteps the
+   browser print pipeline entirely (no @page/orientation/background-graphics quirks).
+   Uses html2canvas rather than a plain <img>+<canvas> re-serialize of the SVG: Mermaid
+   labels are drawn via SVG <foreignObject> (embedded HTML), and Chrome silently taints
+   (and refuses to export) any canvas that drew an SVG containing foreignObject. html2canvas
+   sidesteps that by walking the already-rendered live DOM instead of re-rasterizing the SVG. */
+async function downloadDiagramAsPng(containerEl, filename) {
+  const canvas = await html2canvas(containerEl, { backgroundColor: "#ffffff", scale: 2 });
+  await new Promise((resolve, reject) => canvas.toBlob((blob) => {
+    if (!blob) { reject(new Error("canvas.toBlob returned null")); return; }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    resolve();
+  }, "image/png"));
+}
+
+/* ===== Diagram modal: renders a Mermaid flowchart from the live data and offers a PNG download ===== */
+function DiagramModal({ title, source, onClose }) {
+  const [svg, setSvg] = useState(null);
+  const [error, setError] = useState(null);
+  const svgHostRef = useRef(null);
+  const renderIdRef = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSvg(null); setError(null);
+    const id = "diagram-" + (renderIdRef.current++);
+    mermaid.render(id, source)
+      .then(({ svg }) => { if (!cancelled) setSvg(svg); })
+      .catch((err) => { if (!cancelled) setError(String((err && err.message) || err)); });
+    return () => { cancelled = true; };
+  }, [source]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+  const handleDownload = () => {
+    if (!svgHostRef.current) return;
+    setDownloading(true); setDownloadError(null);
+    downloadDiagramAsPng(svgHostRef.current, title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() + ".png")
+      .catch((err) => setDownloadError(String((err && err.message) || err)))
+      .finally(() => setDownloading(false));
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(5,10,20,0.75)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, width: "100%",
+        maxWidth: 1100, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: "1px solid #e2e2e2" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#1d1d1b", flex: 1 }}>{title}</div>
+          {downloadError && <div style={{ color: "#b00020", fontSize: 12.5, fontWeight: 600, maxWidth: 320 }}>Download failed: {downloadError}</div>}
+          <button className="tool-btn btn-red" onClick={handleDownload} disabled={!svg || downloading}>
+            {downloading ? "Preparing…" : "⬇ Download PNG"}
+          </button>
+          <button className="tool-btn btn-ghost" style={{ color: "#1d1d1b", border: "1.5px solid #ccc" }} onClick={onClose}>✕ Close</button>
+        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: 20, background: "#fafafa" }}>
+          {error && <div style={{ color: "#b00020", fontWeight: 600 }}>Couldn't render this diagram: {error}</div>}
+          {!error && !svg && <div style={{ color: "#666" }}>Rendering…</div>}
+          {svg && <div ref={svgHostRef} dangerouslySetInnerHTML={{ __html: svg }} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ===== Main App ===== */
 function App() {
   const [expanded, setExpanded] = useState(() => new Set(["0", "0-0"])); // Board + Superintendent open
@@ -712,9 +929,12 @@ function App() {
   const [animate, setAnimate] = useState(false);
   const [scrollHint, setScrollHint] = useState(false); // brief "Ctrl+scroll to zoom" nudge
   const [isFs, setIsFs] = useState(false);             // full-screen state
+  const [diagramJob, setDiagramJob] = useState(null);  // {type:'cabinet'} | {type:'branch', id} | null
+  const [diagramMenuOpen, setDiagramMenuOpen] = useState(false);
 
   const viewportRef = useRef(null);
   const canvasRef = useRef(null);
+  const diagramMenuRef = useRef(null);
   const nodeRefs = useRef({});
   const recenterTo = useRef("0-0"); // center the Superintendent on first paint
   const drag = useRef(null);
@@ -816,6 +1036,41 @@ function App() {
     setCabinetMode(turningOn);
     setLayoutVersion((v) => v + 1);
   }, [cabinetMode, data]);
+
+  /* Print Friendly: a district-wide Cabinet Summary, or one of the curated manager
+     pages in PRINT_FRIENDLY_CONFIG. Picked from a toolbar dropdown; mermaid.js lays
+     the boxes/lines out automatically from the data. */
+  const pickDiagram = useCallback((job) => { setDiagramMenuOpen(false); setDiagramJob(job); }, []);
+  useEffect(() => {
+    if (!diagramMenuOpen) return;
+    const onDocClick = (e) => { if (!diagramMenuRef.current || !diagramMenuRef.current.contains(e.target)) setDiagramMenuOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setDiagramMenuOpen(false); };
+    document.addEventListener("mousedown", onDocClick);
+    window.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDocClick); window.removeEventListener("keydown", onKey); };
+  }, [diagramMenuOpen]);
+
+  // resolve the curated config's sheet-ID keys against the live tree once per data load
+  const printFriendlyOptions = useMemo(() => {
+    if (!data) return [];
+    return PRINT_FRIENDLY_CONFIG.map((cfg) => {
+      const node = findByKey(data, cfg.key);
+      if (!node) return null;
+      const extraIds = cfg.extra.map((k) => { const n = findByKey(data, k); return n ? n._id : null; }).filter(Boolean);
+      return { id: node._id, name: node.name, extraIds };
+    }).filter(Boolean);
+  }, [data]);
+  const printFriendlyStopIds = useMemo(() => new Set(printFriendlyOptions.map((o) => o.id)), [printFriendlyOptions]);
+
+  const diagram = useMemo(() => {
+    if (!diagramJob || !data) return null;
+    if (diagramJob.type === "cabinet") {
+      return { title: "Superintendent's Cabinet", source: buildCabinetSummaryMermaid(data) };
+    }
+    const opt = printFriendlyOptions.find((o) => o.id === diagramJob.id);
+    if (!opt) return null;
+    return { title: opt.name + "'s Team", source: buildMermaidForId(data, opt.id, printFriendlyStopIds, opt.extraIds) };
+  }, [diagramJob, data, printFriendlyOptions, printFriendlyStopIds]);
 
   /* full-screen toggle (works inside the iframe because the embed has allowfullscreen) */
   const toggleFullscreen = useCallback(() => {
@@ -967,6 +1222,31 @@ function App() {
           ★ {cabinetMode ? "Cabinet shown" : "Highlight Cabinet"}
         </button>
         <button className="tool-btn btn-red" onClick={collapseAll}>↑ Collapse All</button>
+        <div style={{ position: "relative" }} ref={diagramMenuRef}>
+          <button className={"tool-btn btn-ghost" + (diagramMenuOpen ? " on" : "")} onClick={() => setDiagramMenuOpen((o) => !o)}>
+            🖨 Print Friendly {diagramMenuOpen ? "▲" : "▼"}
+          </button>
+          {diagramMenuOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, minWidth: 220, background: "rgba(20,25,48,0.97)",
+              backdropFilter: "blur(12px)", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.18)", overflow: "hidden",
+              boxShadow: "0 12px 30px rgba(0,0,0,0.45)", zIndex: 30 }}>
+              <div onClick={() => pickDiagram({ type: "cabinet" })}
+                style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.1)" }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(149,195,209,0.18)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                Cabinet Summary
+              </div>
+              {printFriendlyOptions.map((opt) => (
+                <div key={opt.id} onClick={() => pickDiagram({ type: "branch", id: opt.id })}
+                  style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(149,195,209,0.18)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  {opt.name}'s Team
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div title={status === "live" ? "Loaded live from your Google Sheet" : "Showing the built-in backup copy"}
           style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600,
@@ -1020,6 +1300,8 @@ function App() {
 
       <Minimap viewportRef={viewportRef} canvasRef={canvasRef} refs={nodeRefs} nodesById={data.byId} tx={tx} ty={ty} scale={scale}
         layoutVersion={layoutVersion} onJump={minimapJump} />
+
+      {diagram && <DiagramModal title={diagram.title} source={diagram.source} onClose={() => setDiagramJob(null)} />}
     </div>
   );
 }
