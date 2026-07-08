@@ -25,7 +25,7 @@ Each **row** = one box on the chart.
 |---|---|
 | **ID** | a short nickname for this box, e.g. `kuper` (must be unique; no spaces) |
 | **Reports To** | the **ID** of this person's boss (leave blank only for the very top box) |
-| **Type** | `Person`, `Department`, or `School` |
+| **Type** | `Person`, `Department`, `School`, or `Program` |
 | **Name** | the person's name, or the department/school label |
 | **Title** | job title |
 | **Detail** | the small italic line under the title |
@@ -70,6 +70,11 @@ Filenames for the current schools:
 `rooseveltelem.png`, `garfieldelem.png`, `mlkjrelem.png`, `nobhillelem.png`, `acdavishs.png`,
 `ddeisenhowerhs.png` (e.g. "A.C. Davis HS" → `acdavishs.png`). Add a new school's name in the sheet
 the same way (separate multiple schools in one cell with `·`).
+
+## Programs
+Rows with Type = `Program` work just like `School` rows — one or more names in the **Name** cell,
+separated by `·` (e.g. `GEAR UP · TBIP · Migrant Education`). They're listed the same way, but shown
+in lavender with a simple bullet instead of a logo, since a program isn't a building.
 
 ## Safety net
 A backup copy of the data is built into the chart. If the sheet is ever unreachable, the chart still
