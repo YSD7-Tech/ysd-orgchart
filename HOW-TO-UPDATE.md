@@ -61,15 +61,18 @@ To preview it live on your own computer before hosting: open a terminal in this 
 
 ## School logos
 Schools (rows with Type = `School`) are listed one per line, each with its mascot logo. The logos for
-the current 11 schools already ship in the **`logos/` folder**. To add a new school's logo, drop a PNG
+all 23 current schools already ship in the **`logos/` folder**. To add a new school's logo, drop a PNG
 into `logos/` named after the school with all spaces/punctuation removed and lowercased. If a file
 isn't there, a 🏫 placeholder shows instead.
 
 Filenames for the current schools:
 `adamselem.png`, `gilbertelem.png`, `hooverelem.png`, `franklinmiddle.png`, `lewisclarkmiddle.png`,
 `rooseveltelem.png`, `garfieldelem.png`, `mlkjrelem.png`, `nobhillelem.png`, `acdavishs.png`,
-`ddeisenhowerhs.png` (e.g. "A.C. Davis HS" → `acdavishs.png`). Add a new school's name in the sheet
-the same way (separate multiple schools in one cell with `·`).
+`ddeisenhowerhs.png`, `yvtech.png`, `washingtonmiddle.png`, `wilsonmiddle.png`, `stantonacademy.png`,
+`yakimaonlinek8virtual.png`, `bargelincolnelem.png`, `mckinleyelem.png`, `robertsonelem.png`,
+`mcclure.png`, `ridgeviewelem.png`, `whitneyelem.png`, `discoveryearlylearningcenter.png`
+(e.g. "A.C. Davis HS" → `acdavishs.png`). Add a new school's name in the sheet the same way
+(separate multiple schools in one cell with `·`).
 
 **Important:** the filename must match the school's exact Name text in the sheet (lowercased,
 punctuation/spaces stripped) — if the sheet says "Franklin Middle", the file must be
