@@ -88,169 +88,213 @@ function Logo({ size = 46, chip = false }) {
    - schools: { label, schools:true }
    - group:   { group:true, children } -> inlined into parent at build time
 */
-const ORG = {
-  name: "Board of Directors", title: "Elected Governing Board", board: true,
+const ORG = { _key: "board", name: "Board of Directors", title: "Elected Governing Board", board: true,
   children: [
-    {
-      name: "Trevor Greene, Ed.D.", title: "Superintendent", phone: "509.573.7001", email: "greene.trevor@ysd7.org",
-      assistant: { name: "Barb Fiscus", title: "Admin Assistant", phone: "509.573.7001", email: "fiscus.barbara@ysd7.org" },
+    { _key: "supt", name: "Trevor Greene, Ed.D.", title: "Superintendent", phone: "509.573.7001", email: "greene.trevor@ysd7.org", assistant: { name: "Jessica Lara", title: "Admin Assistant", phone: "509.573.7001", email: "lara.jessica@ysd7.org" },
       children: [
-        {
-          name: "Jake Kuper", title: "Assistant Superintendent", sub: "Financial Services, Enrollment & Operations",
-          phone: "509.573.7045", email: "kuper.jacob@ysd7.org", cabinet: true,
-          assistant: { name: "Liz Gonzalez", title: "Admin Asst / Enrollment Supv.", phone: "509.573.7025", email: "gonzalez.elizabeth@ysd7.org" },
+        { _key: "fiscus", name: "Barb Fiscus", title: "Director", sub: "Communications", cabinet: true,
           children: [
-            { label: "Finance", dept: true, children: [
-              { name: "Susan Fate", title: "Director", sub: "Fiscal Services", children: [
-                { name: "Christi Kirk", title: "Program Manager", children: [
-                  { label: "Skyward — Fiscal & HR Support", dept: true, children: [
-                    { name: "Sergio Abundiz", title: "Supervisor" },
-                  ] },
-                ] },
-              ] },
-              { name: "Amber Cliett", title: "Director", sub: "Grant Mgmt & Budgets" },
-            ] },
-            { label: "Payroll", dept: true, children: [
-              { name: "Shari Chapman", title: "Director", sub: "Payroll" },
-            ] },
-            { label: "Technology", dept: true, children: [
-              { name: "Andy Gonzalez", title: "Executive Director", sub: "Technology", phone: "509.573.2901", email: "gonzalez.andy@ysd7.org", cabinet: true, children: [
-                { label: "Assessment", person: "Tina Gerstenberger", dept: true },
-                { label: "Computer Services", person: "Tania Lopez", dept: true },
-                { label: "Information Services", person: "Robert Adams", dept: true },
-                { label: "Network Services", person: "Lance Sandage", dept: true },
-                { label: "Student Info Services", person: "Angela Gjestrum", dept: true },
-              ] },
-            ] },
-            { label: "Enrollment Services", dept: true },
-            { label: "Facilities & Capital Projects", dept: true, children: [
-              { name: "Kyle Soptich", title: "Director", sub: "Facilities", children: [
-                { label: "Custodial", dept: true, children: [
-                  { name: "Jerardo Rivera", title: "Program Manager", children: [
-                    { name: "Jesus Valencia", title: "Supervisor", children: [
-                      { name: "Murray Campbell", title: "Supervisor" },
-                    ] },
-                  ] },
-                ] },
-                { label: "Maintenance & Grounds", dept: true, children: [
-                  { name: "Fidel Gomez", title: "Supervisor" },
-                ] },
-              ] },
-            ] },
-            { label: "Transportation", dept: true, children: [
-              { name: "Artemio Rodriguez, Jr.", title: "Director", sub: "Transportation", children: [
-                { name: "Richard Porter", title: "Assistant Director" },
-              ] },
-            ] },
+            { _key: "comms", label: "Communications", dept: true },
+            { _key: "pr", label: "Public Relations", dept: true },
+            { _key: "langaccess", label: "Language Access", dept: true },
           ],
         },
-        {
-          name: "Christina Larsen, Ed.D.", title: "Deputy Superintendent", sub: "CTE, Special Ed, Safety & Security, HR",
-          phone: "509.573.7032", email: "larsen.christina@ysd7.org", cabinet: true,
-          assistant: { name: "Yesenia Diaz", title: "Admin Assistant", phone: "509.573.7003", email: "diaz.yesenia@ysd7.org" },
+        { _key: "larsen", name: "Christina Larsen, Ed.D.", title: "Deputy Superintendent", sub: "CTE, Special Ed, Safety & Security, HR", phone: "509.573.7032", email: "larsen.christina@ysd7.org", cabinet: true, assistant: { name: "Yesenia Diaz", title: "Admin Assistant", phone: "509.573.7003", email: "diaz.yesenia@ysd7.org" },
           children: [
-            { label: "Special Education Services", dept: true, children: [
-              { name: "K.C. Mitchell", title: "Executive Director", children: [
-                { name: "Kevin Brennan", title: "Director", children: [
-                  { name: "Kelli Riddle", title: "Assistant Director" },
-                  { name: "Dr. Jamie Johnson", title: "Assistant Director" },
-                  { name: "Holly Sutton", title: "Program Manager" },
-                ] },
-              ] },
-            ] },
-            { label: "Career & College Readiness", dept: true, children: [
-              { name: "Bonnie Smith", title: "Executive Director", children: [
-                { name: "Gabe Stotz", title: "CTE Director", children: [
-                  { name: "Nicole Bass", title: "CTE Program Manager" },
-                ] },
-              ] },
-            ] },
-            {
-              name: "Maria Lucero, Ed.D.", title: "Assistant Superintendent", sub: "Teaching & Learning",
-              phone: "509.573.7016", email: "lucero.maria@ysd7.org", cabinet: true,
-              assistant: { name: "Ilda Parra", title: "Admin Assistant", phone: "509.573.7006", email: "parra.ilda@ysd7.org" },
+            { _key: "sped", label: "Special Education Services", dept: true,
               children: [
-                { group: true, children: [
-                  { label: "PLC's", dept: true },
-                  { label: "GEAR UP", dept: true },
-                  { label: "Multilingual — TBIP, Dual Language", dept: true },
-                  { label: "Inclusionary Practices", dept: true },
-                  { label: "MTSS", dept: true },
-                  { label: "Adams Elem · Gilbert Elem · Hoover Elem", schools: true },
-                ] },
-                { name: "Jaime Lee", title: "Executive Director", sub: "Learning & Leadership", children: [
-                  { label: "Danielson Framework Specialist", dept: true },
-                  { label: "ELA / SLA", dept: true },
-                  { label: "Health, LAP, Library, PE", dept: true },
-                  { label: "Dyslexia Law / K-4 Literacy Law", dept: true },
-                  { label: "Highly Capable", dept: true },
-                  { label: "Franklin MS · Lewis & Clark MS · Roosevelt Elem", schools: true },
-                ] },
-                { name: "Hector Mendez, Jr.", title: "Executive Director", sub: "Learning & Leadership", children: [
-                  { label: "Summer School", dept: true },
-                  { label: "Kinder Academy", dept: true },
-                  { label: "Science", dept: true },
-                  { label: "STEAM", dept: true },
-                  { label: "Garfield Elem · MLK Jr. Elem · Nob Hill Elem", schools: true },
-                ] },
-                { name: "Teresa Davison", title: "Executive Director", sub: "Learning & Leadership", children: [
-                  { label: "Scholarships", dept: true },
-                  { label: "Visual & Performing Arts", dept: true },
-                  { label: "Highly Capable", dept: true },
-                  { label: "A.C. Davis HS · D.D. Eisenhower HS", schools: true },
-                ] },
+                { _key: "mitchell", name: "K.C. Mitchell", title: "Executive Director",
+                  children: [
+                    { _key: "brennan", name: "Kevin Brennan", title: "Director",
+                      children: [
+                        { _key: "melton", name: "Stephanie Melton", title: "Assistant Director" },
+                        { _key: "jjohnson", name: "Dr. Jamie Johnson", title: "Assistant Director" },
+                        { _key: "sutton", name: "Holly Sutton", title: "Program Manager" },
+                      ],
+                    },
+                    { _key: "discovery", label: "Discovery Early Learning Center", schools: true },
+                  ],
+                },
               ],
             },
-            {
-              name: "Robert Noe", title: "Chief Legal Counsel", sub: "Legal & Student Services",
-              phone: "509.573.7039", email: "noe.robert@ysd7.org", cabinet: true,
+            { _key: "ccr", label: "Career & College Readiness", dept: true,
               children: [
-                { label: "Legal Services", dept: true },
-                { label: "Student Services", dept: true, children: [
-                  { name: "Omar Santoy", title: "Executive Director", sub: "Student Services", children: [
-                    { label: "Student Services", dept: true, children: [
-                      { name: "Erin Thomas", title: "Director", sub: "Student Services", children: [
-                        { name: "Shawn Orminski", title: "Assistant Director" },
-                      ] },
-                    ] },
-                    { label: "Health Services", dept: true, children: [
-                      { name: "Amy Norton", title: "Director", sub: "Health Services" },
-                    ] },
-                    { label: "Child Nutrition Services", dept: true, children: [
-                      { name: "Cassie Davidson", title: "Director", sub: "Child Nutrition", children: [
-                        { name: "Marcia Wagner", title: "Assistant Director", children: [
-                          { name: "Piyaluck Jaroenkaew", title: "Supervisor" },
-                        ] },
-                      ] },
-                    ] },
-                  ] },
-                ] },
-                { label: "Public Records Requests", dept: true, children: [
-                  { name: "Monica Lake", title: "Public Records" },
-                ] },
+                { _key: "bsmith", name: "Bonnie Smith", title: "Executive Director",
+                  children: [
+                    { _key: "stotz", name: "Gabe Stotz", title: "CTE Director",
+                      children: [
+                        { _key: "bass", name: "Nicole Bass", title: "CTE Program Manager" },
+                      ],
+                    },
+                    { _key: "yvtech", label: "YV-Tech", schools: true },
+                  ],
+                },
               ],
             },
-            { label: "Safety & Security / Athletics", dept: true, children: [
-              { name: "Sara Cordova", title: "Director", children: [
-                { name: "Nate Henyan", title: "Assistant Director" },
-              ] },
-            ] },
-            { label: "Human Resources", dept: true, children: [
-              { name: "Kim Newell", title: "Director" },
-              { name: "Chris Miller", title: "Director", children: [
-                { name: "Olivia Martinez", title: "Program Manager" },
-              ] },
-            ] },
+            { _key: "lucero", name: "Maria Lucero, Ed.D.", title: "Assistant Superintendent", sub: "Teaching & Learning", phone: "509.573.7016", email: "lucero.maria@ysd7.org", cabinet: true, assistant: { name: "Ilda Parra", title: "Admin Assistant", phone: "509.573.7006", email: "parra.ilda@ysd7.org" },
+              children: [
+                { _key: "luceroprograms", label: "PLC's · LAP · Multilingual - TBIP, Dual Language, Title III, ELD · Inclusionary Practices · Liberatory Leadership/TAF · Washington K-12 Innovation with AI Community of Practice · AWSP Empowering Excellence Series · Core Content Goals & Initiatives", programs: true },
+                { _key: "lschools", label: "Adams Elem · Hoover Elem", schools: true },
+                { _key: "lee", name: "Jaime Lee", title: "Executive Director", sub: "Learning & Leadership",
+                  children: [
+                    { _key: "leeprograms", label: "Danielson Framework Specialist · ELA / SLA · Health, Library, PE & Sex Ed · Dyslexia Law / K-4 Literacy Law · IF's · MTSS · Highly Capable · Math K-5 · Science K-8", programs: true },
+                    { _key: "leeschools", label: "Barge-Lincoln Elem · Garfield Elem · Gilbert Elem · McKinley Elem · Robertson Elem · Roosevelt Elem", schools: true },
+                  ],
+                },
+                { _key: "mendez", name: "Hector Mendez, Jr.", title: "Executive Director", sub: "Learning & Leadership",
+                  children: [
+                    { _key: "mendezprograms", label: "Summer School · Kinder Academy · Migrant, MEP, PAC · Elem Report Cards · 5th to 6th Transitions · STEAM · 21st Century · Native Ed", programs: true },
+                    { _key: "mendezschools", label: "McClure Elem · MLK jr. Elem · Nob Hill Elem · Ridgeview Elem · Whitney Elem", schools: true },
+                  ],
+                },
+                { _key: "elfering", name: "Lawrence Elfering", title: "Executive Director", sub: "Learning & Leadership",
+                  children: [
+                    { _key: "elferingprograms", label: "ELA 6-12 · Math 6-12 · Science 9-12 · Instructional Facilitators 6-12 · World Language · Social Studies · Fine Arts · HS Work Group · Sex Ed 6-12 · Graduation, Transitions MS to HS, Transfers, Gear Up · UW GEAR UP, UW Upword Bound, WSU Educational Talent Search", programs: true },
+                    { _key: "elferingschools", label: "Franklin Middle · Lewis & Clark Middle · Washington Middle · Wilson Middle · A.C. Davis HS · D.D. Eisenhower HS · Stanton Academy · Yakima Online/K-8 Virtual", schools: true },
+                  ],
+                },
+              ],
+            },
+            { _key: "safety", label: "Safety & Security / Athletics", dept: true,
+              children: [
+                { _key: "cordova", name: "Sara Cordova", title: "Director",
+                  children: [
+                    { _key: "henyan", name: "Nate Henyan", title: "Assistant Director" },
+                  ],
+                },
+              ],
+            },
+            { _key: "hr", label: "Human Resources", dept: true,
+              children: [
+                { _key: "newell", name: "Kim Newell", title: "Director" },
+                { _key: "cmiller", name: "Chris Miller", title: "Director",
+                  children: [
+                    { _key: "omartinez", name: "Jesica Godoy", title: "Program Manager" },
+                  ],
+                },
+              ],
+            },
+            { _key: "studentsvc", label: "Student Services", dept: true,
+              children: [
+                { _key: "santoy", name: "Omar Santoy", title: "Executive Director", sub: "Student Services",
+                  children: [
+                    { _key: "ss2", label: "Student Services", dept: true,
+                      children: [
+                        { _key: "thomas", name: "Erin Thomas", title: "Director", sub: "Student Services",
+                          children: [
+                            { _key: "orminski", name: "Shawn Orminski", title: "Assistant Director" },
+                          ],
+                        },
+                      ],
+                    },
+                    { _key: "health", label: "Health Services", dept: true,
+                      children: [
+                        { _key: "norton", name: "Amy Norton", title: "Director", sub: "Health Services" },
+                      ],
+                    },
+                    { _key: "nutrition", label: "Child Nutrition Services", dept: true,
+                      children: [
+                        { _key: "davidson", name: "Cassie Davidson", title: "Director", sub: "Child Nutrition",
+                          children: [
+                            { _key: "wagner", name: "Marcia Wagner", title: "Assistant Director",
+                              children: [
+                                { _key: "jaroenkaew", name: "Piyaluck Jaroenkaew", title: "Supervisor" },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
           ],
         },
-        {
-          name: "Barb Fiscus", title: "Executive Director", sub: "Communications & Engagement",
+        { _key: "kuper", name: "Jake Kuper", title: "Assistant Superintendent", sub: "Financial Services, Enrollment & Operations", phone: "509.573.7045", email: "kuper.jacob@ysd7.org", cabinet: true, assistant: { name: "Liz Gonzalez", title: "Admin Asst / Enrollment Supv.", phone: "509.573.7025", email: "gonzalez.elizabeth@ysd7.org" },
           children: [
-            { label: "Communications", dept: true },
-            { label: "Public Relations", dept: true },
-            { label: "Language Access", dept: true },
-            { label: "Student Voice", dept: true },
-            { label: "Family & Community Engagement", dept: true },
+            { _key: "fin", label: "Finance", dept: true,
+              children: [
+                { _key: "fate", name: "Susan Fate", title: "Director", sub: "Fiscal Services",
+                  children: [
+                    { _key: "kirk", name: "Christi Kirk", title: "Program Manager",
+                      children: [
+                        { _key: "skyward", label: "Skyward — Fiscal & HR Support", dept: true,
+                          children: [
+                            { _key: "abundiz", name: "Sergio Abundiz", title: "Supervisor" },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                { _key: "cliett", name: "Amber Cliett", title: "Director", sub: "Grant Mgmt & Budgets" },
+              ],
+            },
+            { _key: "payroll", label: "Payroll", dept: true,
+              children: [
+                { _key: "chapman", name: "Shari Chapman", title: "Director", sub: "Payroll" },
+              ],
+            },
+            { _key: "tech", label: "Technology", dept: true,
+              children: [
+                { _key: "agonzalez", name: "Andy Gonzalez", title: "Executive Director", sub: "Technology", phone: "509.573.2901", email: "gonzalez.andy@ysd7.org", cabinet: true,
+                  children: [
+                    { _key: "assessment", label: "Assessment", dept: true, person: "Tina Gerstenberger" },
+                    { _key: "compserv", label: "Computer Services", dept: true, person: "Tania Lopez" },
+                    { _key: "infoserv", label: "Information Services", dept: true, person: "Robert Adams" },
+                    { _key: "netserv", label: "Network Services", dept: true, person: "Lance Sandage" },
+                    { _key: "sisserv", label: "Student Info Services", dept: true, person: "Angela Gjestrum" },
+                  ],
+                },
+              ],
+            },
+            { _key: "enroll", label: "Enrollment Services", dept: true, person: "Liz Gonzalez" },
+            { _key: "facilities", label: "Facilities & Capital Projects", dept: true,
+              children: [
+                { _key: "soptich", name: "Kyle Soptich", title: "Director", sub: "Facilities",
+                  children: [
+                    { _key: "custodial", label: "Custodial", dept: true,
+                      children: [
+                        { _key: "rivera", name: "Jerardo Rivera", title: "Program Manager",
+                          children: [
+                            { _key: "valencia", name: "Jesus Valencia", title: "Supervisor",
+                              children: [
+                                { _key: "campbell", name: "TBD", title: "Supervisor" },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                    { _key: "maint", label: "Maintenance & Grounds", dept: true,
+                      children: [
+                        { _key: "fgomez", name: "Fidel Gomez", title: "Supervisor" },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            { _key: "transport", label: "Transportation", dept: true,
+              children: [
+                { _key: "arodriguez", name: "Artemio Rodriguez, Jr.", title: "Director", sub: "Transportation",
+                  children: [
+                    { _key: "porter", name: "Richard Porter", title: "Assistant Director" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        { _key: "noe", name: "Robert Noe", title: "Chief Legal Counsel", sub: "Legal & Student Services", phone: "509.573.7039", email: "noe.robert@ysd7.org", cabinet: true,
+          children: [
+            { _key: "legal", label: "Legal Services", dept: true },
+            { _key: "pubrec", label: "Public Records Requests", dept: true,
+              children: [
+                { _key: "lake", name: "Monica Lake", title: "Public Records" },
+              ],
+            },
           ],
         },
       ],
@@ -440,7 +484,7 @@ function mermaidAssistantLines(node, lines, edges) {
   if (a.title) parts.push(mermaidEscape(a.title));
   if (a.phone) parts.push(mermaidEscape(a.phone));
   lines.push("  " + aid + '["' + parts.join("<br/>") + '"]:::assistant');
-  edges.push(aid + " --- " + mermaidId(node._id));
+  edges.push(mermaidId(node._id) + " --- " + aid);
 }
 
 /* recursively emits one node's box + its subtree, stopping (and noting it) at any
@@ -495,8 +539,9 @@ function buildMermaidForId(data, id, stopIds, extraIds) {
    he already falls under Kuper's team via Technology in the real reporting line.
    `extra` is only for genuinely-not-a-descendant cases (there are none right now).
    Keyed by the sheet's own "ID" column (via each node's `_key`), which is stable
-   even if the tree position/depth changes; only present on live-sheet data, not
-   the embedded backup. */
+   even if the tree position/depth changes. The embedded backup (ORG, above) is
+   kept stamped with the same `_key` values so this config resolves the same way
+   whether the live sheet or the backup is what's loaded. */
 const PRINT_FRIENDLY_CONFIG = [
   { key: "supt", extra: [] },
   { key: "kuper", extra: [] },
